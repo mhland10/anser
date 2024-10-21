@@ -9,6 +9,7 @@ This module is the Python software that allows for the reading and post-processi
 
 import os
 import sys
+import numpy as np
 
 ###################################################################################################
 #
@@ -85,6 +86,51 @@ class syntheticBoundaryLayer:
                                             None. Must be numerical if "C_f" is None.
         
         """
+
+        #
+        # Set up the variables
+        #
+        cls.U_inf = U_inf
+        cls.nu = nu
+
+        if C_f:
+            cls.C_f = C_f
+            cls.u_tau = cls.U_inf * np.sqrt( cls.C_f / 2 )
+        elif u_tau:
+            cls.u_tau = u_tau
+            cls.C_f = 2 * ( ( cls.u_tau / cls.U_inf ) ** 2 )
+        else:
+            raise ValueError( "C_f or u_tau are missing" )
+        
+        #
+        # Turn values to dimensional values
+        #
+        cls.Us = cls.profile.Upluss * cls.u_tau
+        cls.ys = cls.profile.ypluss * ( cls.nu / cls.u_tau )
+        cls.u_U = cls.Us / cls.U_inf
+
+    def boundaryLayerLimits( cls , BL_threshold = 0.99 ):
+
+        #
+        # Find the edge of the boundary layer
+        #
+        cls.Uplus_edge = cls.U_inf * BL_threshold / cls.u_tau
+        cls.yplus_edge = np.interp( cls.Uplus_edge , cls.profile.Upluss , cls.profile.ypluss )
+        cls.profile.Upluss[cls.profile.ypluss>=cls.yplus_edge] = cls.Uplus_edge
+        cls.delta = cls.yplus_edge * ( cls.nu / cls.u_tau )
+
+        #
+        # Calculate boundary layer height
+        #
+        cls.u_U = (( cls.profile.Upluss *  cls.u_tau ) / cls.U_inf )
+        cls.ys = cls.profile.ypluss * ( cls.nu / cls.u_tau )
+        cls.y_delta = cls.ys #/ cls.delta
+        cls.delta_star = np.trapz( 1 - cls.u_U , x = cls.y_delta )
+        cls.theta = np.trapz( cls.u_U * ( 1 - cls.u_U ) , x = cls.y_delta )
+        
+
+
+
 
         
 

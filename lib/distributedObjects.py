@@ -17,7 +17,7 @@ import numpy as np
 
 class boundaryLayer:
 
-    def __init__( self , vonKarmanConst = 0.41 , vanDriestConst = 5.0 , distDomainLims = [ 1e-3 , 1e3 ] , distDomainN = 1e3 ):
+    def __init__( self , vonKarmanConst = 0.41 , vanDriestConst = 5.0 , distDomainLims = [ 1e-3 , 1e3 ] , distDomainN = 1e3 , regionSwitch = 11 ):
         """
         This object is the data object that contains the data and methods to define the boundary
             layer.
@@ -36,6 +36,9 @@ class boundaryLayer:
 
         **distDomainN : <int>   The number of points in the tabulated law-of-the-wall
                                     distribution's domain.
+
+        **regionSwitch : <float>    The y+ value where the behavior switches from the inner to outer 
+                                        region.
 
         ATTRIBUTES
         ----------
@@ -58,7 +61,7 @@ class boundaryLayer:
         self.ypluss = np.logspace( np.log10( np.min( distDomainLims ) ) , np.log10( np.max( distDomainLims ) ) , num = int( distDomainN ) )
         self.Upluss = np.zeros( int( distDomainN ) )
         for i , ypl in enumerate( self.ypluss ):
-            if ypl > 10 :
+            if ypl > regionSwitch :
                 self.Upluss[i] = ( 1 / self.vonKarmanConst ) * np.log( ypl ) + self.vanDriestConst
             else:
                 self.Upluss[i] = ypl
