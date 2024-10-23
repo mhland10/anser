@@ -196,4 +196,95 @@ def rotateVectorComponents_in2D(comp_x, comp_y, tangent_x):
 
     return comp_s.reshape(-1), comp_n.reshape(-1)
 
+###################################################################################################
+#
+# Flow Data Functions
+#
+###################################################################################################
 
+def boundaryLayerThickness( y , u , U_inf=None , threshold = 0.99 , y_min = 1e-6 , n_samples = 100 ):
+    """
+    Calculate the boundary layer thicknesses for a given flow profile.
+
+    Args:
+        y [float]:  [m] The wall-normal coordinates for the flow profile.
+
+        u [float]:  [m/s] The streamwise velocity of the flow profile.
+
+        U_inf (float, optional):    The freestream velocity of the flow profile. Defaults to None, 
+                                        which makes the freestream velocity the maximum velocity of
+                                        "u".
+
+        threshold (float, optional):    The threshold that defines the edge of the boundary layer by
+                                            the ratio of velocity to the freestream velocity 
+                                            (u/U_inf). Defaults to 0.99.
+
+        y_min (float, optional):    [m] The minimum wall-normal coordinate for the projected flow 
+                                        profile. Note that in the function, there is a new domain
+                                        created between the wall and boundary layer edge. Defaults 
+                                        to 1e-6.
+
+        n_samples (int, optional):  The number of samples in the projected flow profile. Defaults 
+                                        to 100.
+
+    Returns:
+        
+        BLthickness (float):    [m] The boundary layer thickness according to the flow profile and
+                                    prescribed threshold.
+
+        disp_BLthickness (float):   [m] The displacement boundary layer thickness.
+
+        mom_BLthickness (float):    [m] The momentum boundary layer thickness.
+
+    """
+
+    # Define the freestream velocity if not already defined
+    if not U_inf:
+        U_inf = np.max( u )
+    
+    # Calculate velocity ratio
+    u_U = u / U_inf
+    print("u/U:\t"+str(u_U))
+    u_U_limited = u_U[:np.where(u_U>=1)[0][0]]
+    y_limited = y[:np.where(u_U>=1)[0][0]]
+    print("u/U (limited):\t"+str(u_U_limited))
+
+    # Find the boundary layer thickness
+    BLthickness = np.interp( threshold , u_U_limited , y_limited )
+
+    # Project onto a new domain between the wall and the edge of the boundary layer
+    y_projected = np.logspace( np.log10( y_min ) , np.log10( BLthickness ) , num = n_samples )
+    u_U_projected = np.interp( y_projected , y_limited , u_U_limited )
+
+    # Calculate the displacement and momentum boundary layer thicknesses from integral definitions
+    disp_BLthickness = np.trapz( ( 1 - u_U_projected ) , x = y_projected )
+    mom_BLthickness = np.trapz( u_U_projected * ( 1 - u_U_projected )  , x = y_projected )
+
+    return BLthickness , disp_BLthickness , mom_BLthickness
+
+def shearConditions( y , u , nu , U_inf=None ):
+    """
+    
+
+    Args:
+        y (_type_): _description_
+        u (_type_): _description_
+        nu (_type_): _description_
+        U_inf (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
+
+
+    # Define the freestream velocity if not already defined
+    if not U_inf:
+        U_inf = np.max( u )
+
+    # Calculate shear velocity
+    u_tau = np.sqrt( nu * np.abs( ( u[1] - u[0] ) / ( y[1] - y[0] ) ) )
+    
+    # Skin friction coefficient
+    C_f = 2 * ( ( u_tau / U_inf ) ** 2 )
+
+    return u_tau , C_f 

@@ -28,12 +28,13 @@ sys.path.insert( 0 , lib_dir )
 sys.path.insert( 0 , img_dir )
 
 from distributedObjects import *
+from distributedFunctions import *
 
-############################################################################
+###################################################################################################
 #
 # Pre-processing objects
 #
-############################################################################
+###################################################################################################
 
 class syntheticBoundaryLayer:
 
@@ -109,7 +110,7 @@ class syntheticBoundaryLayer:
         cls.ys = cls.profile.ypluss * ( cls.nu / cls.u_tau )
         cls.u_U = cls.Us / cls.U_inf
 
-    def boundaryLayerLimits( cls , BL_threshold = 0.99 ):
+    def boundaryLayerLimits( cls , delta = None , delta_star = None , theta = None , BL_threshold = 0.99 ):
 
         #
         # Find the edge of the boundary layer
@@ -127,6 +128,137 @@ class syntheticBoundaryLayer:
         cls.y_delta = cls.ys #/ cls.delta
         cls.delta_star = np.trapz( 1 - cls.u_U , x = cls.y_delta )
         cls.theta = np.trapz( cls.u_U * ( 1 - cls.u_U ) , x = cls.y_delta )
+        
+
+class recycledBoundaryLayer:
+    """
+    This object finds the boundary layer location desired and produces a mapped boundary layer to
+        inject in a new inlet.
+    
+    """
+
+    def __init__( self , bounding_points , rake_length , boundaryLayer_data , nu , datafile , N_samples = 100 , scanaxis = 'x' , norm_vector = (0,-1,0) , data_weights = None , start_height = 1e-6 ):
+        """
+        Initialize the recycling boundary layer
+
+        Args:
+            bounding_points ([float]):  These are the points at either end of the domain to sweep
+                                            the rake across to find the best boundary layer 
+                                            location. Must align with "scanaxis".
+
+            rake_length (float):    The length of the rakes that will find the best boundary layer
+                                        location.
+
+            boundaryLayer_data [float]: This is a list or array of the data to fit the sampling
+                                            that the recycling will be fit to. This will take the
+                                            form of a normalized error to be minimized depending on
+                                            the location. The order needs to be:
+
+                                        1)  Boundary Layer Height (delta) [m]
+
+                                        2)  Displacement Boundary Layer Height (delta*) [m]
+
+                                        3)  Momentum Boundary Layer Height (theta) [m]
+
+                                        4)  Shape Factor (H) [-]
+
+                                        5)  Skin Friction Coefficient (C_f) [-]
+
+                                        6)  Shear Velocity (u_tau) [m/s]
+
+                                        7)  Unit Length Reynolds Number (dRe_x/dx) [1/m]
+
+                                        8)  Momentum Thickness Reynolds Number (Re_theta) [-]
+
+                                        9)  Shear Velocity Reynolds Number (Re_tau) [-]
+
+                                        If a value is not necessary, then the corresponding weight
+                                            in "data_weights" should be 0. 
+
+                                        The net error is calculated by: norm( ( weight * error) )
+
+                                        The error is calculated by: ( station / desired ) - 1
+
+            nu (float): The kinematic viscosity of the CFD conditions.
+
+            datafile (string):  The data file to pull the boundary layer from.
+            
+            N_samples   (float, optional):  The number of samples that will be in the rakes that
+                                                are sampling the boundary layer to find where best
+                                                represents the expected boundary layer.
+
+            scanaxis    (char, optional): The axis to scan along to find the best boundary layer 
+                                            representation. Defaults to 'x'.
+
+            data_weights [float, optional]: The weights that correspond to the data in 
+                                                "boundaryLayer_data". Defaults to None, which is an
+                                                equal weighting to all data values.
+
+            start_height    (float, optional):  The starting height for the rake. Needs to be non-
+                                                    zero for the logarithmic distribution.
+
+        """
+
+        #
+        # Sweep Parameters
+        #
+        self.bounding_points = bounding_points
+        self.rake_length = rake_length
+        self.N_samples = N_samples
+        self.scanaxis = scanaxis
+        self.start_height = start_height
+
+        #
+        # Boundary Layer Data
+        #
+        self.boundaryLayer_data = boundaryLayer_data
+        self.data_weights = data_weights
+
+        self.datafile = datafile
+
+        self.nu = nu
+
+    def bisect_Search( cls ):
+
+        searching = True
+        c = 1
+        search_bounds = cls.bounding_points
+        while searching:
+            print("Search iteration:\t{x}".format(x=c))
+
+            boundLHS = search_bounds[0]
+            boundRHS = search_bounds[1]
+
+            cls.rakeLHS = rake( ( boundLHS * np.ones( cls.N_samples ) , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) , np.zeros( cls.N_samples ) ) , cls.datafile )
+            cls.rakeRHS = rake( ( boundRHS * np.ones( cls.N_samples ) , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) , np.zeros( cls.N_samples ) ) , cls.datafile )
+            cls.rakeLHS.dataToDictionary()
+            cls.rakeRHS.dataToDictionary()
+
+            #
+            # Calculate flow parameters
+            #
+            cls.LHS_data = [0]*3
+            cls.RHS_data = [0]*3
+            # BL thicknesses
+            cls.LHS_data[0] , cls.LHS_data[1] , cls.LHS_data[2] = boundaryLayerThickness( np.abs( cls.rakeLHS.data['y'] ) , cls.rakeLHS.data['U'][:,0] )
+            cls.RHS_data[0] , cls.RHS_data[1] , cls.RHS_data[2] = boundaryLayerThickness( np.abs( cls.rakeRHS.data['y'] ) , cls.rakeRHS.data['U'][:,0] )
+            # Shape factor
+            cls.LHS_data += [ cls.LHS_data[1] / cls.LHS_data[2] ]
+            cls.RHS_data += [ cls.RHS_data[1] / cls.RHS_data[2] ]
+            # Shear parameters
+            cls.LHS_data += [0]*2
+            cls.RHS_data += [0]*2
+            cls.LHS_data[-2] , cls.LHS_data[-1] = shearConditions( np.abs( cls.rakeLHS.data['y'] ) , cls.rakeLHS.data['U'][:,0] , cls.nu )
+            cls.RHS_data[-2] , cls.RHS_data[-1] = shearConditions( np.abs( cls.rakeRHS.data['y'] ) , cls.rakeRHS.data['U'][:,0] , cls.nu )
+
+
+
+            searching = False
+
+
+
+
+
         
 
 
