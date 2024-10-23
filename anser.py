@@ -250,6 +250,10 @@ class recycledBoundaryLayer:
             cls.RHS_data += [0]*2
             cls.LHS_data[-2] , cls.LHS_data[-1] = shearConditions( np.abs( cls.rakeLHS.data['y'] ) , cls.rakeLHS.data['U'][:,0] , cls.nu )
             cls.RHS_data[-2] , cls.RHS_data[-1] = shearConditions( np.abs( cls.rakeRHS.data['y'] ) , cls.rakeRHS.data['U'][:,0] , cls.nu )
+            # Reynolds numbers
+            cls.LHS_data += [0]*3
+            cls.RHS_data += [0]*3
+            
 
 
 

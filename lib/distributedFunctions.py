@@ -264,16 +264,24 @@ def boundaryLayerThickness( y , u , U_inf=None , threshold = 0.99 , y_min = 1e-6
 
 def shearConditions( y , u , nu , U_inf=None ):
     """
-    
+    Calculates the shear conditions of a boundary layer given the flow profile.
 
     Args:
-        y (_type_): _description_
-        u (_type_): _description_
-        nu (_type_): _description_
-        U_inf (_type_, optional): _description_. Defaults to None.
+        y [float]:      [m] Wall-normal coordinates.
+
+        u [float]:      [m/s] Streamwise velocity profile.
+
+        nu (float):     [m2/s] Kinematic viscosity.
+
+        UU_inf (float, optional):    The freestream velocity of the flow profile. Defaults to None, 
+                                        which makes the freestream velocity the maximum velocity of
+                                        "u".
 
     Returns:
-        _type_: _description_
+        u_tau (float):  [m/s] Friciton velocity.
+
+        C_f (float):    [-] Skin friction coefficient.
+        
     """
 
 
