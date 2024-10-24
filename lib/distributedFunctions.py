@@ -296,3 +296,32 @@ def shearConditions( y , u , nu , U_inf=None ):
     C_f = 2 * ( ( u_tau / U_inf ) ** 2 )
 
     return u_tau , C_f 
+
+def ReynoldsNumber( x , nu , u=None , U_inf=None ):
+    """
+    This function creates a Reynolds number from the required inputs.
+
+    Args:
+        x (float):      [m] The distance measurement of Reynolds number. Can be 0 for unit length.
+
+        nu (float):     [m2/s] The kinematic viscosity of the flow.
+
+        u [float, optional]:    [m/s] The velocity profile of the flow. Defaults to None, must be
+                                    numeric if "U_inf" is None.
+
+        U_inf (float, optional): [m/s] The freestream velocity of the flow. Defaults to None.
+
+    Returns:
+        Re (float):     [-] The Reynolds number according to the input parameters.
+
+    """
+
+    if not U_inf:
+        U_inf = np.max( u )
+        
+    if x==0:
+        x = 1
+
+    Re = U_inf * x / nu
+        
+    return Re

@@ -226,9 +226,15 @@ class recycledBoundaryLayer:
         while searching:
             print("Search iteration:\t{x}".format(x=c))
 
-            boundLHS = search_bounds[0]
-            boundRHS = search_bounds[1]
+            if c==1:
+                boundLHS = search_bounds[0]
+                boundRHS = search_bounds[1]
+            print("\tLHS:\t{x:.3f}".format(x=boundLHS))
+            print("\tRHS:\t{x:.3f}".format(x=boundRHS))
 
+            #
+            # Get data for LHS & RHS
+            # 
             cls.rakeLHS = rake( ( boundLHS * np.ones( cls.N_samples ) , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) , np.zeros( cls.N_samples ) ) , cls.datafile )
             cls.rakeRHS = rake( ( boundRHS * np.ones( cls.N_samples ) , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) , np.zeros( cls.N_samples ) ) , cls.datafile )
             cls.rakeLHS.dataToDictionary()
@@ -253,11 +259,42 @@ class recycledBoundaryLayer:
             # Reynolds numbers
             cls.LHS_data += [0]*3
             cls.RHS_data += [0]*3
-            
+            cls.LHS_data[-3] = ReynoldsNumber( 0 , cls.nu , u = cls.rakeLHS.data['U'][:,0] )
+            cls.RHS_data[-3] = ReynoldsNumber( 0 , cls.nu , u = cls.rakeRHS.data['U'][:,0] )
+            cls.LHS_data[-2] = ReynoldsNumber( cls.LHS_data[2] , cls.nu , u = cls.rakeLHS.data['U'][:,0] )
+            cls.RHS_data[-2] = ReynoldsNumber( cls.RHS_data[2] , cls.nu , u = cls.rakeRHS.data['U'][:,0] )
+            cls.LHS_data[-1] = ReynoldsNumber( cls.LHS_data[0] , cls.nu , U_inf = cls.LHS_data[3] )
+            cls.RHS_data[-1] = ReynoldsNumber( cls.RHS_data[0] , cls.nu , U_inf = cls.RHS_data[3] )
+
+            #
+            # Calculate normalized error
+            #
+            cls.LHS_errors = np.asarray( cls.LHS_data ) / cls.boundaryLayer_data - 1
+            cls.RHS_errors = np.asarray( cls.RHS_data ) / cls.boundaryLayer_data - 1
+            cls.LHS_errorNorm = np.linalg.norm( cls.LHS_errors )
+            cls.RHS_errorNorm = np.linalg.norm( cls.RHS_errors )
+            print("\tLHS norm:\t{x:.3f}".format(x=cls.LHS_errorNorm))
+            print("\tRHS norm:\t{x:.3f}".format(x=cls.RHS_errorNorm))
+
+            # 
+            # Bisect
+            #
+            cut = np.mean([ boundLHS , boundRHS ])
+            if cls.LHS_errorNorm > cls.RHS_errorNorm:
+                LHS_nextbound = cut
+                RHS_nextbound = boundRHS
+                c += 1
+            elif cls.LHS_errorNorm < cls.RHS_errorNorm:
+                LHS_nextbound = boundLHS
+                RHS_nextbound = cut
+                c +=1
+            elif c>10:
+                searching = False
+            else:
+                searching = False
 
 
-
-            searching = False
+            #searching = False
 
 
 
