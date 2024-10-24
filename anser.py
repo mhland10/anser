@@ -10,6 +10,7 @@ This module is the Python software that allows for the reading and post-processi
 import os
 import sys
 import numpy as np
+import pandas as pd
 
 ###################################################################################################
 #
@@ -32,7 +33,7 @@ from distributedFunctions import *
 
 ###################################################################################################
 #
-# Pre-processing objects
+# Boundary Layer Profile Objects
 #
 ###################################################################################################
 
@@ -128,6 +129,20 @@ class syntheticBoundaryLayer:
         cls.y_delta = cls.ys #/ cls.delta
         cls.delta_star = np.trapz( 1 - cls.u_U , x = cls.y_delta )
         cls.theta = np.trapz( cls.u_U * ( 1 - cls.u_U ) , x = cls.y_delta )
+
+    def wake( cls , delta , nu , u_tau ):
+        """
+
+
+        Args:
+            delta (_type_): _description_
+            nu (_type_): _description_
+            u_tau (_type_): _description_
+        """
+        
+        cls.delta_plus_conversion = nu / ( u_tau * delta )
+        
+        cls.profile.wakeProfile( cls.delta_plus_conversion )
         
 
 class recycledBoundaryLayer:
@@ -297,10 +312,81 @@ class recycledBoundaryLayer:
             #searching = False
 
 
+###################################################################################################
+#
+# Lead-In Profile
+#
+###################################################################################################
 
+class leadInBL:
 
+    def __init__( self , theta_target , delta_target , L_domain , U_inf , nu ):
+        """
+        Initialize the lead-in Boundary Layer object.
 
+        Calculates the inlet conditions from the target conditions from the following relations
+            from Kays and Crawford:
+
+            Re_theta = 0.036 * ( Re_x ^ 0.8 )
+
+        And the following from White and Majdalani:
+
+            Re_delta = 0.016 * ( Re_x ^ (6/7) )
+
+        Args:
+            theta_target (float):   [m] The momentum thickness to target.
+
+            L_domain (float):   [m] The length of the domain to develop to the target boundary 
+                                    layer.
+
+            U_inf (float):  [m/s] The effective freestream velocity of the boundary layer.
+
+            nu (float): [m2/s] Kinematic viscosity of the flow.
+
+        """
+
+        #
+        # Store the parameters
+        #
+        self.theta_1 = theta_target
+        self.delta_1 = delta_target
+        self.L = L_domain
+        self.U_inf = U_inf
+        self.nu = nu
+
+        #
+        # Find inlet conditions
+        #
+        self.theta_0 = ( ( self.U_inf * self.theta_1 / self.nu ) - 0.036 * ( ( self.U_inf * self.L / self.nu ) ** 0.8 ) ) * ( self.nu / self.U_inf )
+        self.delta_0 = ( ( self.U_inf * self.delta_1 / self.nu ) - 0.016 * ( ( self.U_inf * self.L / self.nu ) ** (6/7) ) ) * ( self.nu / self.U_inf )
+
+    def profileGenerate( cls , u_tau ):
+        """
+        Generate the profile of the inlet boundary layer
+
+        Args:
+            u_tau (float):  [m/s] Shear velocity
+
+        """
+
+        cls.BL = syntheticBoundaryLayer( distDomainLims=[ 1e-1 , cls.delta_0 * u_tau / cls.nu ] , distDomainN=100 )
+        cls.BL.profile.colesProfile()
+        cls.BL.wake( cls.delta_0 , cls.nu , u_tau )
+
+        cls.u_tau = u_tau
+
+    def velocityProfileExport( cls , h_domain , normal=(0,1,0) , N_freestream = 100 ):
         
+        cls.y = normal[1] * cls.BL.profile.ypluss * cls.nu / cls.u_tau
+        cls.y = np.append( cls.y , np.linspace( normal[1] * np.max( np.abs( cls.y ) ) * 1.1 , h_domain , num = N_freestream ) )
+        cls.u = cls.BL.profile.Upluss * cls.u_tau
+        cls.u = np.append( cls.u , cls.U_inf * np.ones( N_freestream ) )
+        cls.v = np.zeros_like( cls.u )
+        cls.w = np.zeros_like( cls.u )
+
+        df = pd.DataFrame( { 'y' : cls.y , 'U_x': cls.u , 'U_y' : cls.v , 'U_z' : cls.w } )
+        df.to_csv( 'velocity_profile.csv' , index=False )
+
 
 
 

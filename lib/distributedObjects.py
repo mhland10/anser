@@ -68,6 +68,43 @@ class boundaryLayer:
                 self.Upluss[i] = ( 1 / self.vonKarmanConst ) * np.log( ypl ) + self.vanDriestConst
             else:
                 self.Upluss[i] = ypl
+
+    def colesProfile( cls , C = 4.7 , eta_1 = 11 , b = 0.33 ):
+        """
+        This method changes the profile to Coles' profile described in his 1956 paper.
+
+        Args:
+
+            C (float, optional):    Constant C from distribution. Defaults to 4.7.
+
+            eta_1 (float, optional):    Eta constant from distribution. Defaults to 11.
+
+            b (float, optional):    b constant from distribution. Defaults to 0.33.
+
+        """
+
+        C_1 = - np.log( cls.vonKarmanConst ) / cls.vonKarmanConst + C
+
+        cls.Upluss = np.log( 1 + cls.vonKarmanConst * cls.ypluss ) / cls.vonKarmanConst
+        cls.Upluss = cls.Upluss + C_1 * ( 1 - np.exp( - cls.ypluss / eta_1 ) - ( cls.ypluss / eta_1 ) * np.exp( - cls.ypluss * b ) )
+
+    def wakeProfile( cls , plus_delta_conversion , Pi = 0.25 ):
+        """
+        Adds in a wake profile for the velocity profile distribution.
+
+        Args:
+            plus_delta_conversion (float):  [1/m] The multiplier to go from the wall units to
+                                                boundary layer units.
+
+            Pi (float, optional):   The Pi constant from the distribution. Defaults to 0.25.
+        
+        """
+        
+        # y/delta values
+        cls.y_delta = cls.ypluss * plus_delta_conversion
+
+        # Add wake to profile
+        cls.Upluss = cls.Upluss + ( 1 / cls.vonKarmanConst ) * ( ( cls.y_delta ** 2 ) - ( cls.y_delta ** 3 ) + 6 * Pi * ( cls.y_delta ** 2 ) - 4 * Pi * ( cls.y_delta ** 3 ) )
     
 
 
