@@ -375,17 +375,45 @@ class leadInBL:
 
         cls.u_tau = u_tau
 
-    def velocityProfileExport( cls , h_domain , normal=(0,1,0) , N_freestream = 100 ):
+    def velocityProfileExport( cls , h_domain , normal=(0,1,0) , N_freestream = 100 , target = "default" ):
         
         cls.y = normal[1] * cls.BL.profile.ypluss * cls.nu / cls.u_tau
+        cls.y = np.append( np.zeros(1) , cls.y )
         cls.y = np.append( cls.y , np.linspace( normal[1] * np.max( np.abs( cls.y ) ) * 1.1 , h_domain , num = N_freestream ) )
         cls.u = cls.BL.profile.Upluss * cls.u_tau
+        cls.u = np.append( np.zeros(1) , cls.u )
         cls.u = np.append( cls.u , cls.U_inf * np.ones( N_freestream ) )
         cls.v = np.zeros_like( cls.u )
         cls.w = np.zeros_like( cls.u )
 
-        df = pd.DataFrame( { 'y' : cls.y , 'U_x': cls.u , 'U_y' : cls.v , 'U_z' : cls.w } )
-        df.to_csv( 'velocity_profile.csv' , index=False )
+        opening = ['('] * len( cls.y )
+        closing = [')'] * len( cls.y )
+
+        if target.lower()=="default":
+            
+            df = pd.DataFrame( { 'y' : cls.y , 'U_x': cls.u , 'U_y' : cls.v , 'U_z' : cls.w } )
+            df.to_csv( 'velocity_profile.csv' , index=False )
+
+        elif target.lower()=="openfoam":
+
+            sorted_indices = np.argsort(cls.y)
+
+            # Sort all arrays using the sorted indices
+            y_sorted = cls.y[sorted_indices]
+            u_sorted = cls.u[sorted_indices]
+            v_sorted = cls.v[sorted_indices]
+            w_sorted = cls.w[sorted_indices]
+            
+            # Format data to include parentheses
+            formatted_data = ["("]
+            formatted_data += [f"({y_sorted[i]}\t({u_sorted[i]} {v_sorted[i]} {w_sorted[i]}))" for i in range(len(y_sorted))]
+            formatted_data += [")"]
+
+            # Write to a .dat file
+            with open('velocity_profile.dat', 'w') as f:
+                for line in formatted_data:
+                    f.write(line + "\n")
+
 
 
 
