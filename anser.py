@@ -143,6 +143,40 @@ class syntheticBoundaryLayer:
         cls.delta_plus_conversion = nu / ( u_tau * delta )
         
         cls.profile.wakeProfile( cls.delta_plus_conversion )
+
+        cls.nu = nu
+        cls.u_tau = u_tau
+
+    def turbulenceProfile( cls , model = "all"  ):
+        """
+        Creates the profile of turbulence for the boundary layer being created.
+
+        Args:
+            model (str, optional):  The turbulence model to create the profile for. The valid
+                                        options are:
+                                        
+                                    -"sa" or "spalartallmaras" or "spalart-allmaras":
+                                        Create the turbulence profile that accounts for the 
+                                            parameters. 
+
+                                    -"ko" or "kosst" or "komega:    Use the k-omega or k-omega 
+                                                                        sst model.
+
+                                    -*"all":    Create all the known turbulence parameters that
+                                                    are available.
+                                            
+                                    Defaults to "all".
+
+        """
+
+        cls.profile.nu_tProfile( cls.nu )
+
+        if model.lower()=="all" or model.lower()=="sa" or model.lower()=="spalartallmaras" or model.lower()=="spalart-allmaras":
+            cls.profile.nu_tildaProfile()
+        
+        if model.lower()=="all" or model.lower()[:1]=="ko" or model.lower()=="kosst":
+            cls.profile.kProfile( cls.u_tau )
+            cls.profile.omegaProfile( cls.nu , cls.u_tau )
         
 
 class recycledBoundaryLayer:
@@ -360,12 +394,27 @@ class leadInBL:
         self.theta_0 = ( ( self.U_inf * self.theta_1 / self.nu ) - 0.036 * ( ( self.U_inf * self.L / self.nu ) ** 0.8 ) ) * ( self.nu / self.U_inf )
         self.delta_0 = ( ( self.U_inf * self.delta_1 / self.nu ) - 0.016 * ( ( self.U_inf * self.L / self.nu ) ** (6/7) ) ) * ( self.nu / self.U_inf )
 
-    def profileGenerate( cls , u_tau ):
+    def profileGenerate( cls , u_tau , turbulence_model="all" ):
         """
         Generate the profile of the inlet boundary layer
 
         Args:
             u_tau (float):  [m/s] Shear velocity
+
+            turbulence_model (str, optional):  The turbulence model to create the profile for. The 
+                                        valid options are:
+                                        
+                                    -"sa" or "spalartallmaras" or "spalart-allmaras":
+                                        Create the turbulence profile that accounts for the 
+                                            parameters. 
+
+                                    -"ko" or "kosst" or "komega:    Use the k-omega or k-omega 
+                                                                        sst model.
+
+                                    -*"all":    Create all the known turbulence parameters that
+                                                    are available.
+                                            
+                                    Defaults to "all".
 
         """
 
@@ -373,7 +422,10 @@ class leadInBL:
         cls.BL.profile.colesProfile()
         cls.BL.wake( cls.delta_0 , cls.nu , u_tau )
 
+        cls.BL.turbulenceProfile( model=turbulence_model )
+
         cls.u_tau = u_tau
+        cls.turb_model = turbulence_model
 
     def velocityProfileExport( cls , h_domain , normal=(0,1,0) , N_freestream = 100 , target = "default" ):
         
@@ -413,6 +465,123 @@ class leadInBL:
             with open('velocity_profile.dat', 'w') as f:
                 for line in formatted_data:
                     f.write(line + "\n")
+
+            cls.sort_indx = sorted_indices
+
+        cls.N_free = N_freestream
+        cls.target = target
+
+    def turbulenceProfileExport( cls ):
+
+
+        #
+        # Write turbulent kinematic viscosity
+        #
+        cls.nu_t = np.append( np.zeros(1) , cls.BL.profile.nu_ts )
+        cls.nu_t = np.append( cls.nu_t , cls.nu_t[-1] * np.ones( cls.N_free ) )
+
+        if cls.target.lower()=="default":
+            
+            df = pd.DataFrame( { 'y' : cls.y , 'nut': cls.nu_t } )
+            df.to_csv( 'nut_profile.csv' , index=False )
+
+        elif cls.target.lower()=="openfoam":
+
+            # Sort all arrays using the sorted indices
+            y_sorted = cls.y[cls.sort_indx]
+            nut_sorted = cls.nu_t[cls.sort_indx]
+            
+            # Format data to include parentheses
+            formatted_data = ["("]
+            formatted_data += [f"({y_sorted[i]}\t{nut_sorted[i]})" for i in range(len(y_sorted))]
+            formatted_data += [")"]
+
+            # Write to a .dat file
+            with open('nut_profile.dat', 'w') as f:
+                for line in formatted_data:
+                    f.write(line + "\n")
+
+        #
+        # Write SA model parameters
+        #
+        if cls.turb_model.lower()=="all" or cls.turb_model.lower()=="sa" or cls.turb_model.lower()=="spalartallmaras" or cls.turb_model.lower()=="spalart-allmaras":
+            cls.nu_tilda = np.append( np.zeros(1) , cls.BL.profile.nu_tildas )
+            cls.nu_tilda = np.append( cls.nu_tilda , cls.nu_tilda[-1] * np.ones( cls.N_free ) )
+
+            if cls.target.lower()=="default":
+            
+                df = pd.DataFrame( { 'y' : cls.y , 'nuTilda': cls.nu_tilda } )
+                df.to_csv( 'nuTilda_profile.csv' , index=False )
+
+            elif cls.target.lower()=="openfoam":
+
+                # Sort all arrays using the sorted indices
+                y_sorted = cls.y[cls.sort_indx]
+                nut_sorted = cls.nu_tilda[cls.sort_indx]
+
+                # Format data to include parentheses
+                formatted_data = ["("]
+                formatted_data += [f"({y_sorted[i]}\t{nut_sorted[i]})" for i in range(len(y_sorted))]
+                formatted_data += [")"]
+
+                # Write to a .dat file
+                with open('nuTilda_profile.dat', 'w') as f:
+                    for line in formatted_data:
+                        f.write(line + "\n")
+        
+        #
+        # Write k-o model parameters
+        #
+        if cls.turb_model.lower()=="all" or cls.turb_model.lower()[:1]=="ko" or cls.turb_model.lower()=="kosst":
+            cls.k = np.append( np.zeros(1) , cls.BL.profile.k )
+            cls.k = np.append( cls.k , cls.k[-1] * np.ones( cls.N_free ) )
+
+            cls.omega = np.append( cls.BL.profile.omegas[0] , cls.BL.profile.omegas )
+            cls.omega = np.append( cls.omega , cls.omega[-1] * np.ones( cls.N_free ) )
+
+            if cls.target.lower()=="default":
+            
+                df = pd.DataFrame( { 'y' : cls.y , 'k': cls.k } )
+                df.to_csv( 'k_profile.csv' , index=False )
+
+            elif cls.target.lower()=="openfoam":
+
+                # Sort all arrays using the sorted indices
+                y_sorted = cls.y[cls.sort_indx]
+                k_sorted = cls.k[cls.sort_indx]
+
+                # Format data to include parentheses
+                formatted_data = ["("]
+                formatted_data += [f"({y_sorted[i]}\t{k_sorted[i]})" for i in range(len(y_sorted))]
+                formatted_data += [")"]
+
+                # Write to a .dat file
+                with open('k_profile.dat', 'w') as f:
+                    for line in formatted_data:
+                        f.write(line + "\n")
+
+            if cls.target.lower()=="default":
+            
+                df = pd.DataFrame( { 'y' : cls.y , 'omega': cls.omega } )
+                df.to_csv( 'omega_profile.csv' , index=False )
+
+            elif cls.target.lower()=="openfoam":
+
+                # Sort all arrays using the sorted indices
+                y_sorted = cls.y[cls.sort_indx]
+                omega_sorted = cls.omega[cls.sort_indx]
+
+                # Format data to include parentheses
+                formatted_data = ["("]
+                formatted_data += [f"({y_sorted[i]}\t{omega_sorted[i]})" for i in range(len(y_sorted))]
+                formatted_data += [")"]
+
+                # Write to a .dat file
+                with open('omega_profile.dat', 'w') as f:
+                    for line in formatted_data:
+                        f.write(line + "\n")
+
+
 
 
 
