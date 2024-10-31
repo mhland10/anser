@@ -353,6 +353,10 @@ class boundaryLayer:
         nut_cap = nut * np.ones_like( cls.nu_ts )
         cls.nu_ts = np.maximum( cls.nu_ts , nut_cap )
 
+    def omegaFloor( cls , omega_freestream ):
+
+        cls.omegas[ cls.omegas <= omega_freestream ] = omega_freestream
+
 
 
 ###################################################################################################
