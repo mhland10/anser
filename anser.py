@@ -11,6 +11,7 @@ import os
 import sys
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 ###################################################################################################
 #
@@ -130,22 +131,67 @@ class syntheticBoundaryLayer:
         cls.delta_star = np.trapz( 1 - cls.u_U , x = cls.y_delta )
         cls.theta = np.trapz( cls.u_U * ( 1 - cls.u_U ) , x = cls.y_delta )
 
-    def wake( cls , delta , nu , u_tau ):
-        """
+    def colesProfile( cls ):
 
+        cls.profile.colesProfile()
+
+    def wake( cls , delta , nu , u_tau , Pi=0.25 , Pi_search=False , Pi_range = ( 0.01 , 1 ) , Pi_N = 10 , theta=None , theta_only=True ):
+        """
+        Create a wake for the boundary layer according to the input parameters.
 
         Args:
-            delta (_type_): _description_
-            nu (_type_): _description_
-            u_tau (_type_): _description_
+            delta (float):  [m] Boundary layer height.
+
+            nu (float):     [m2/s] The kinematic viscosity of the fluid.
+
+            u_tau (float):  [m/s] The friction velocity of the boundary layer.
+
+            Pi (float):     The value of Pi that will be used to generate the wake profile.
+
+            Pi_search (boolean, optional):  If Pi will be found, the switch to turn that on.
+
+            Pi_range [float, optional]: The range of values to search for Pi across.
+
+            Pi_N (float, optional): The number of samples to search for Pi over.
         """
         
         cls.delta_plus_conversion = nu / ( u_tau * delta )
-        
-        cls.profile.wakeProfile( cls.delta_plus_conversion )
 
+        if Pi_search:
+
+            if not theta and not hasattr(cls , 'theta' ):
+                raise ValueError("Pi search requires a known value for momentum thickness")
+
+            cls.Pis = np.logspace( np.log10( np.min( Pi_range ) ) , np.log10( np.max( Pi_range ) ) , num = Pi_N )
+            cls.deltas = np.zeros_like( cls.Pis )
+            cls.thetas = np.zeros_like( cls.Pis )
+            for i, Pi in enumerate( cls.Pis ):
+                cls.profile.wakeProfile( cls.delta_plus_conversion , Pi = Pi )
+                U_pluss = cls.profile.Upluss
+                y_pluss = cls.profile.ypluss
+                delta_plus , _ , theta_plus = boundaryLayerThickness( y_pluss , U_pluss , y_min=np.min(y_pluss)/10 )
+                cls.deltas[i] = delta_plus * ( nu / u_tau )
+                cls.thetas[i] = theta_plus * ( nu / u_tau )
+
+            if theta_only:
+                cls.convs = -1 + np.sqrt( ( ( cls.thetas / theta ) ** 2 ) )
+            else:
+                cls.convs = -1 + np.sqrt( ( ( cls.thetas / theta ) ** 2 ) + ( ( cls.deltas / delta ) ** 2 ) )
+
+            if ( np.min( cls.convs ) < 0 ) and ( np.max( cls.convs ) > 0 ):
+                Pi = np.interp( 0 , cls.convs , cls.Pis )
+            else:
+                cls.search = np.gradient( cls.convs )
+                Pi = np.interp( 0 , cls.search , cls.Pis ) 
+
+
+        cls.profile.wakeProfile( cls.delta_plus_conversion , Pi = Pi )
+
+        cls.Pi = Pi
         cls.nu = nu
         cls.u_tau = u_tau
+
+        cls.profile.Upluss[ cls.profile.Upluss >= ( cls.U_inf / u_tau ) ] =  cls.U_inf / u_tau 
 
     def turbulenceProfile( cls , model = "all"  ):
         """
@@ -419,6 +465,7 @@ class leadInBL:
         """
 
         cls.BL = syntheticBoundaryLayer( distDomainLims=[ 1e-1 , cls.delta_0 * u_tau / cls.nu ] , distDomainN=100 )
+        cls.BL.dimensionalize( cls.U_inf , cls.nu , u_tau=u_tau )
         cls.BL.profile.colesProfile()
         cls.BL.wake( cls.delta_0 , cls.nu , u_tau )
 
@@ -581,8 +628,102 @@ class leadInBL:
                     for line in formatted_data:
                         f.write(line + "\n")
 
+###################################################################################################
+#
+# OpenFOAM Post-Processing
+#
+###################################################################################################
+
+class caseReader:
+    """
+    This object allows a user to read an OpenFOAM case and pull data efficiently given a proper set
+        up.
+
+    """
+
+    def __init__( self , casename , casepath , working_directory=None ):
+        """
+        Initialize the case reader for an OpenFOAM case.
+
+        Args:
+            casename (string):  The name of the case.
+
+            casepath (string):  The path of the case in the system to move to the directory.
+
+            working_directory (string, optional):   The directory to store data in. The defaul is
+                                                        None, leave as if "casepath" is also the
+                                                        working directory.
+
+        """
 
 
+        self.casename = casename
+        self.casepath = casepath
+
+        if working_directory:
+            self.working_directory = working_directory
+        else:
+            self.working_directory = self.casepath
+
+    def convergencePlot( cls , headers , residualfile=None , residualpath=None , residualimg="residuals.png" , img_directory=None ):
+        """
+        This method plots the residuals from the post-processing data files.
+
+        Args:
+            headers [string]:   The headers of the dataframe to use.
+
+            residualfile (string, optional):    The name of the file where the residuals are 
+                                                    stored. Defaults to None, leave as is to 
+                                                    automatically detect.
+
+            residualpath (string, optional):    The path to find the residuals. Defaults to 
+                                                    None, leave as is to automatically detect.
+
+            residualimg (str, optional):    The name of the image to store the residual plot
+                                                into. The default is "residuals.png".
+
+            img_directory (str, optional):  The name of the directory in the working directory
+                                                to save the files to. The default is None,
+                                                leave as is to store in the working directory.
+
+        """
+
+        os.chdir( cls.casepath )
+        os.chdir( "./postProcessing/residuals/" )
+
+        # List only directories in the current directory
+        dirs = [d for d in os.listdir() if os.path.isdir(d)]
+
+        # Check if there is only one directory
+        if len(dirs) == 1:
+            os.chdir(dirs[0])
+            print(f"Changed directory to: {dirs[0]}")
+        else:
+            print("Error: There is not exactly one directory present.")
+            os.chdir(dirs[-1])
+
+        # Read the table, skipping the comment lines
+        if not residualfile:
+            residualfile = "residuals.dat"    
+        cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#')
+
+        # Plot the data
+        os.chdir( cls.working_directory )
+        if img_directory:
+            os.chdir( img_directory )
+        else:
+            os.chdir( cls.working_directory )
+        for c in headers:
+            plt.semilogy( cls.df_residuals['Time'] , cls.df_residuals[c] , label=c )
+        plt.xlabel('Time')
+        plt.ylabel('Residuals')
+        plt.title('Residuals Over Time')
+        plt.legend(loc='best')
+        plt.savefig( residualimg , dpi=300 , bbox_inches='tight' )
+        plt.show()
+        os.chdir( cls.working_directory )
+
+        
 
 
 

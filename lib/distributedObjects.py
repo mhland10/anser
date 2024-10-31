@@ -327,6 +327,32 @@ class boundaryLayer:
 
         cls.omegas = cls.k / cls.nu_ts
 
+    def nutFromKOmega( cls ):
+        """
+        This method creates a profile for nu_t from k and omega.
+
+        """
+
+        cls.nu_ts = cls.k / cls.omegas
+
+    def nutCap( cls , nut , Chi=None ):
+        """
+        This method caps the nu_t value at either a given value or Chi value.
+
+        Args:
+            nut (float):    [m2/s] nu_t value to be the maximum value.
+
+            Chi (float, optional):  The maxmimum value of Chi to cap nu_t at. Defaults to None,
+                                        which caps the value to the input "nut".
+
+        """
+
+        if Chi:
+            nut = cls.nu * Chi
+
+        nut_cap = nut * np.ones_like( cls.nu_ts )
+        cls.nu_ts = np.maximum( cls.nu_ts , nut_cap )
+
 
 
 ###################################################################################################

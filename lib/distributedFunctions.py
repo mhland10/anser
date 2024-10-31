@@ -244,10 +244,10 @@ def boundaryLayerThickness( y , u , U_inf=None , threshold = 0.99 , y_min = 1e-6
     
     # Calculate velocity ratio
     u_U = u / U_inf
-    print("u/U:\t"+str(u_U))
+    #print("u/U:\t"+str(u_U))
     u_U_limited = u_U[:np.where(u_U>=1)[0][0]]
     y_limited = y[:np.where(u_U>=1)[0][0]]
-    print("u/U (limited):\t"+str(u_U_limited))
+    #print("u/U (limited):\t"+str(u_U_limited))
 
     # Find the boundary layer thickness
     BLthickness = np.interp( threshold , u_U_limited , y_limited )
