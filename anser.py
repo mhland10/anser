@@ -135,7 +135,7 @@ class syntheticBoundaryLayer:
 
         cls.profile.colesProfile()
 
-    def wake( cls , delta , nu , u_tau , Pi=0.25 , Pi_search=False , Pi_range = ( 0.01 , 1 ) , Pi_N = 10 , theta=None , theta_only=True ):
+    def wake( cls , delta , nu , u_tau , Pi=0.25 , Pi_search=False , Pi_range = ( 0.1 , 1 ) , Pi_N = 10 , theta=None , theta_only=True ):
         """
         Create a wake for the boundary layer according to the input parameters.
 
@@ -169,6 +169,7 @@ class syntheticBoundaryLayer:
                 cls.profile.wakeProfile( cls.delta_plus_conversion , Pi = Pi )
                 U_pluss = cls.profile.Upluss
                 y_pluss = cls.profile.ypluss
+                U_pluss[ U_pluss >= ( cls.U_inf / u_tau ) ] =  cls.U_inf / u_tau
                 delta_plus , _ , theta_plus = boundaryLayerThickness( y_pluss , U_pluss , y_min=np.min(y_pluss)/10 )
                 cls.deltas[i] = delta_plus * ( nu / u_tau )
                 cls.thetas[i] = theta_plus * ( nu / u_tau )

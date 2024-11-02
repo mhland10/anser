@@ -357,6 +357,46 @@ class boundaryLayer:
 
         cls.omegas[ cls.omegas <= omega_freestream ] = omega_freestream
 
+    def nutFloor( cls , nut_freestream ):
+
+        cls.nu_ts[ cls.nu_ts <= nut_freestream ] = nut_freestream
+
+    def kSmooth( cls , n=10 ):
+        """
+        Smooths the turbulent kinetic energy profile via a moving average filter.
+
+        Args:
+            n (int, optional): The number of terms in the moving average filter. Defaults to 10.
+
+        """
+
+        cls.k = np.convolve( cls.k , np.ones( n ) , mode="same" ) / n
+
+    def nutSmooth( cls , n=10 ):
+        """
+        Smooths the turbulent viscosity profile via a moving average filter.
+
+        Args:
+            n (int, optional): The number of terms in the moving average filter. Defaults to 10.
+
+        """
+
+        cls.nu_ts = np.convolve( cls.nu_ts , np.ones( n ) , mode="same" ) / n
+
+    def kRescale( cls , minK , maxK ):
+        """
+        Rescale the turbulent kinetic energy according to the inputs.
+
+        Args:
+            minK (float):   [m2/s2] The minimum value for the turbulent kinetic energy.
+
+            maxK (float):   [m2/s2] The maximum value for the turbulent kinetic energy.
+
+        """
+
+        C = ( np.max( cls.k ) - np.min( cls.k ) ) / ( maxK - minK )
+        cls.k = cls.k / C
+
 
 
 ###################################################################################################
