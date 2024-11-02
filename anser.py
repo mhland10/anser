@@ -666,7 +666,7 @@ class caseReader:
         else:
             self.working_directory = self.casepath
 
-    def convergencePlot( cls , headers , residualfile=None , residualpath=None , residualimg="residuals.png" , img_directory=None ):
+    def convergencePlot( cls , headers , residualfile=None , residualpath=None , residualimg="residuals.png" , img_directory=None , preprocess=False ):
         """
         This method plots the residuals from the post-processing data files.
 
@@ -706,7 +706,27 @@ class caseReader:
         # Read the table, skipping the comment lines
         if not residualfile:
             residualfile = "residuals.dat"    
-        cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#')
+
+        if preprocess:
+            # Read all lines from the file
+            with open(residualfile, "r") as file:
+                lines = file.readlines()
+
+            # Modify the second line by removing its first character
+            lines[1] = lines[1][1:]
+
+            # Delete the third line
+            lines.pop(2)
+
+            # Write the modified content back to the file
+            with open(residualfile, "w") as file:
+                file.writelines(lines)
+        if headers:
+            cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#' , na_values=0 )
+        else:
+            cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#', header=0)
+        
+        cls.df_residuals.columns = cls.df_residuals.columns.str.strip()
 
         # Plot the data
         os.chdir( cls.working_directory )
@@ -714,7 +734,8 @@ class caseReader:
             os.chdir( img_directory )
         else:
             os.chdir( cls.working_directory )
-        for c in headers:
+        for c in cls.df_residuals.columns[1:]:
+            print("Plot "+c)
             plt.semilogy( cls.df_residuals['Time'] , cls.df_residuals[c] , label=c )
         plt.xlabel('Time')
         plt.ylabel('Residuals')
