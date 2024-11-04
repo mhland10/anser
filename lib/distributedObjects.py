@@ -549,4 +549,251 @@ class rake:
             else:
                 cls.data_df[d] = data_np
 
+class pointDistribution:
+    """
+    This object allows the user to create point distribution that can be used for the post-
+        processing.
+
+    """
+
+    def __init__( self , L , ds , s_0 , normal=(0,1,0) ):
+        """
+        Create a point distribution that corresponds to the inputs to initialize the point
+            distribution object.
+
+        Args:
+            L (float):  [m] The length of the points distribution.
+
+            ds (float): [m] The uniform distance between the points.
+
+            s_0 (float):    [m] The array of the first point coordinates. Must be in format:
+
+                            [ x_0 , y_0 , z_0 ]
+
+            normal (float, optional):   The normal vector for the points to follow.
+
+        Attributes:
+            L (float)   <- L
+
+            ds (float)  <- ds
+
+            normal (float)  <-  normal
+
+            x [float]:  The x-coordinates of the point distribution.
+
+            y [float]:  The y-coordinates of the point distribution.
+
+            z [float]:  The z-coordinates of the point distribution.
+
+        """
+
+        #
+        # Place the inputs into the object
+        #
+        self.L = L
+        self.ds = ds
+        self.normal = normal / np.linalg.norm( normal )
+
+        #
+        # Create uniform point distribution
+        #
+        x_L = L*self.normal[0]
+        x_st = np.minimum( s_0[0] , s_0[0]+x_L )
+        x_sp = np.maximum( s_0[0] , s_0[0]+x_L )
+        x_step = np.abs( ds*normal[0] )
+        y_L = L*self.normal[1]
+        y_st = np.minimum( s_0[1] , s_0[1]+y_L )
+        y_sp = np.maximum( s_0[1] , s_0[1]+y_L )
+        y_step = np.abs( ds*normal[1] )
+        z_L = L*self.normal[2]
+        z_st = np.minimum( s_0[2] , s_0[2]+z_L )
+        z_sp = np.maximum( s_0[2] , s_0[2]+z_L )
+        z_step = np.abs( ds*normal[2] )
+
+        if np.abs(x_L)>0:
+            self.x = np.arange( x_st , x_sp+x_step , x_step )
+            if np.abs(y_L)==0:
+                self.y = np.zeros_like( self.x )
+            if np.abs(z_L)==0:
+                self.z = np.zeros_like( self.x )
+        if np.abs(y_L)>0:
+            self.y = np.arange( y_st , y_sp+y_step , y_step )
+            if np.abs(x_L)==0:
+                self.x = np.zeros_like( self.y )
+            if np.abs(z_L)==0:
+                self.z = np.zeros_like( self.y )
+        if np.abs(z_L)>0:
+            self.z = np.arange( z_st , z_sp+z_step , z_step )
+            if np.abs(x_L)==0:
+                self.x = np.zeros_like( self.z )
+            if np.abs(y_L)==0:
+                self.y = np.zeros_like( self.z )
+
+
+    def logInsert( cls , c_0 , l , N ):
+
+        if not hasattr( cls , "x_logs" ):
+            cls.x_logs=[]
+        if not hasattr( cls , "y_logs" ):
+            cls.y_logs=[]
+        if not hasattr( cls , "z_logs" ):
+            cls.z_logs=[]
+        
+        #
+        # Create the log distributions
+        #
+        x_L = l*cls.normal[0]
+        x_st = np.minimum( c_0[0] , c_0[0]+x_L )
+        x_sp = np.maximum( c_0[0] , c_0[0]+x_L )
+        if np.abs(x_L)>0:
+            cls.x_log = (x_st/np.abs(x_st)) * np.logspace( np.log10(np.abs(x_st)) , np.log10(np.abs(x_sp)) , num=N)
+        else:
+            cls.x_log = np.zeros( N )
+        y_L = l*cls.normal[1]
+        y_st = np.minimum( c_0[1] , c_0[1]+y_L )
+        y_sp = np.maximum( c_0[1] , c_0[1]+y_L )
+        if np.abs(y_L)>0:
+            cls.y_log = (y_st/np.abs(y_st)) * np.logspace( np.log10(np.abs(y_st)) , np.log10(np.abs(y_sp)) , num=N)
+        else:
+            cls.y_log = np.zeros( N )
+        z_L = l*cls.normal[2]
+        z_st = np.minimum( c_0[2] , c_0[2]+z_L )
+        z_sp = np.maximum( c_0[2] , c_0[2]+z_L )
+        if np.abs(y_L)>0:
+            cls.z_log = (z_st/np.abs(z_st)) * np.logspace( np.log10(np.abs(z_st)) , np.log10(np.abs(z_sp)) , num=N)
+        else:
+            cls.z_log = np.zeros( N )
+
+        #
+        # Insert the log distributions
+        #
+        if np.abs( cls.normal[0] )==np.max( np.abs( cls.normal ) ):
+            if np.min(cls.x)<np.min(cls.x_log):
+                cls.x_r = cls.x[cls.x<np.min(cls.x_log)]
+                cls.y_r = cls.y[cls.x<np.min(cls.x_log)]
+                cls.z_r = cls.z[cls.x<np.min(cls.x_log)]
+                cls.x_r = np.append( cls.x_r , cls.x_log )
+                cls.y_r = np.append( cls.y_r , cls.y_log )
+                cls.z_r = np.append( cls.z_r , cls.z_log )
+            else:
+                cls.x_r = cls.x_log
+                cls.y_r = cls.y_log
+                cls.z_r = cls.z_log
+            if np.max(cls.x)>np.max(cls.x_log):
+                cls.x_r = np.append( cls.x_r , cls.x[cls.x>np.max(cls.x_log)] )
+                cls.y_r = np.append( cls.y_r , cls.y[cls.x>np.max(cls.x_log)] )
+                cls.z_r = np.append( cls.z_r , cls.z[cls.x>np.max(cls.x_log)] )
+            
+        elif np.abs( cls.normal[1] )==np.max( np.abs( cls.normal ) ):
+            if np.min(cls.y)<np.min(cls.y_log):
+                cls.x_r = cls.x[cls.y<np.min(cls.y_log)]
+                cls.y_r = cls.y[cls.y<np.min(cls.y_log)]
+                cls.z_r = cls.z[cls.y<np.min(cls.y_log)]
+                cls.x_r = np.append( cls.x_r , cls.x_log )
+                cls.y_r = np.append( cls.y_r , cls.y_log )
+                cls.z_r = np.append( cls.z_r , cls.z_log )
+            else:
+                cls.x_r = cls.x_log
+                cls.y_r = cls.y_log
+                cls.z_r = cls.z_log
+            if np.max(cls.y)>np.max(cls.y_log):
+                cls.x_r = np.append( cls.x_r , cls.x[cls.y>np.max(cls.y_log)] )
+                cls.y_r = np.append( cls.y_r , cls.y[cls.y>np.max(cls.y_log)] )
+                cls.z_r = np.append( cls.z_r , cls.z[cls.y>np.max(cls.y_log)] )
+
+        else:
+            if np.min(cls.z)<np.min(cls.z_log):
+                cls.x_r = cls.x[cls.z<np.min(cls.z_log)]
+                cls.y_r = cls.y[cls.z<np.min(cls.z_log)]
+                cls.z_r = cls.z[cls.z<np.min(cls.z_log)]
+                cls.x_r = np.append( cls.x_r , cls.x_log )
+                cls.y_r = np.append( cls.y_r , cls.y_log )
+                cls.z_r = np.append( cls.z_r , cls.z_log )
+            else:
+                cls.x_r = cls.x_log
+                cls.y_r = cls.y_log
+                cls.z_r = cls.z_log
+            if np.max(cls.z)>np.max(cls.z_log):
+                cls.x_r = np.append( cls.x_r , cls.x[cls.z>np.max(cls.z_log)] )
+                cls.y_r = np.append( cls.y_r , cls.y[cls.z>np.max(cls.z_log)] )
+                cls.z_r = np.append( cls.z_r , cls.z[cls.z>np.max(cls.z_log)] )
+        
+        cls.x = cls.x_r
+        cls.y = cls.y_r
+        cls.z = cls.z_r
+
+    def initBL( cls , nu , u_tau , dyplus_0 , side , stream=(1,0,0) ):
+        """
+        Initialize a Boundary Layer for the object to create a distribution of points.
+
+        Args:
+            nu (float): [m2/s] The kinematic viscosity of the fluid.
+
+            u_tau (float):  [m/s] The friction velocity of the boundary layer.
+
+            dyplus_0 (float):   [-] The resolution of the first step.
+
+            side (string):  Which side of the point distribution the BL will be defined on.
+                                The valid options are:
+
+                            -"lhs": The smaller index, or Left Hand Side.
+
+                            -"rhs": The larger index, or Right Hand Side.
+
+                            Not case sensitive.
+
+            stream (float, optional):   The vector that points along the streamwise direction of the
+                                            boundary layer.
+
+        Attributes:
+            BL {}:  The boundary layer dictionary that contains all the data needed to produce
+                        the log distribution. The entries will be:
+
+                    -"nu":  [m2/s] The kinematic viscosity of the fluid.
+
+                    -"u_tau":   [m/s] The friction velocity of the boundary layer.
+
+                    -"dyplus_0":    [-] The y+ height of the first step.
+
+                    -"dy_0":    [m] The y height of the first step.
+
+                    -"stream_vector":   [m] The vector of the streamwise direction for the boundary 
+                                                layer.
+
+        """
+
+        if not hasattr( cls , "BL" ):
+            cls.BL=[]
+
+        BL_init={}
+        BL_init["nu"]=nu
+        BL_init["u_tau"]=u_tau
+        BL_init["dyplus_0"]=dyplus_0
+        BL_init["dy_0"]=dyplus_0*nu/u_tau
+        if side.lower()=="lhs" or side.lower()=="rhs":
+            BL_init["side"]=side.lower()
+        else:
+            raise ValueError( "side must be either LHS or RHS" )
+        BL_init["stream_vector"]=np.asarray( stream ) / np.linalg.norm( np.asarray( stream ) )
+
+        cls.BL+=[BL_init]
+
+    def distBL( cls , selection=None , fit_tolerance = 1e-3 ):
+
+        if not selection==None:
+            cls.off_normal = cls.normal - np.dot( cls.normal , cls.BL[selection]["stream_vector"] ) * cls.BL[selection]["stream_vector"] / ( np.linalg.norm( cls.BL[selection]["stream_vector"] ) ** 2 )
+
+            if np.abs( cls.off_normal[1] ) > 0:
+                y_BL_height = 0.1
+                y_BL_N = 25
+                if cls.BL[selection]["side"]=="lhs":
+                    y_BL = np.logspace( np.min( cls.y ) , np.min( cls.y ) + y_BL_height , num=y_BL_N )
+                    y_BL_init_error = y_BL[0] / y_BL_N
+                else:
+                    y_BL = np.logspace( np.max( cls.y ) - y_BL_height , np.max( cls.y ) , num=y_BL_N )
+                
+
+        else:
+            print("Hello there")
+
 
