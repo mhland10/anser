@@ -315,6 +315,12 @@ class recycledBoundaryLayer:
         self.nu = nu
 
     def bisect_Search( cls ):
+        """
+        Find the best location to take the recycled BL from via a bisecting search method.
+
+        Note as of 2024/11/07:  This method doesn't work.
+
+        """
 
         searching = True
         c = 1
@@ -331,10 +337,15 @@ class recycledBoundaryLayer:
             #
             # Get data for LHS & RHS
             # 
-            cls.rakeLHS = rake( ( boundLHS * np.ones( cls.N_samples ) , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) , np.zeros( cls.N_samples ) ) , cls.datafile )
-            cls.rakeRHS = rake( ( boundRHS * np.ones( cls.N_samples ) , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) , np.zeros( cls.N_samples ) ) , cls.datafile )
+            cls.y_vals = -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples )
+            cls.x_vals_LHS = boundLHS * np.ones_like( cls.y_vals )
+            cls.x_vals_RHS = boundRHS * np.ones_like( cls.y_vals )
+            cls.z_vals = np.zeros_like( cls.y_vals )
+            cls.rakeLHS = rake( ( cls.x_vals_LHS , cls.y_vals  , cls.z_vals ) , cls.datafile )
+            cls.rakeRHS = rake( ( cls.x_vals_RHS , cls.y_vals  , cls.z_vals ) , cls.datafile )
             cls.rakeLHS.dataToDictionary()
             cls.rakeRHS.dataToDictionary()
+            print("Rake LHS dictionary keys:\t"+str(cls.rakeLHS.data.keys()))
 
             #
             # Calculate flow parameters
@@ -385,13 +396,145 @@ class recycledBoundaryLayer:
                 RHS_nextbound = cut
                 c +=1
             elif c>10:
-                searching = False
+                searching = True
             else:
                 searching = False
 
 
             #searching = False
 
+
+        cls.x_bestfit=np.mean([boundLHS,boundRHS])
+
+    def interpolationSearch( cls , N_points, store_data=True ):
+        """
+        Find the best location for the recycled BL from an interpolation of minimum error.
+
+        Args:
+            N_points (int): The number of samples for the interpolation.
+
+            store_data (bool, optional):    Whether or not to store the error data that goes into 
+                                                the interpolation. Defaults to True.
+
+        """
+
+
+        cls.x_vals = np.linspace( np.min( cls.bounding_points ) , np.max( cls.bounding_points ) , num = N_points)
+        cls.y_vals = np.append( [0] , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) )
+        cls.z_vals = np.zeros_like( cls.y_vals )
+        
+        cls.layers_data=[]
+        cls.layers_errors=[]
+        cls.net_errors=[]
+
+        for i in range( N_points ):
+            
+            print("i:\t{x}".format(x=i))
+
+            cls.point_coords = ( cls.x_vals[i]*np.ones_like( cls.y_vals ) , cls.y_vals  , cls.z_vals )
+            cls.rake0 = rake( cls.point_coords  , cls.datafile )
+            cls.rake0.dataToDictionary()
+
+            #
+            # Calculate flow parameters
+            #
+            cls.layer_data = [0]*3
+            # BL thicknesses
+            cls.layer_data[0] , cls.layer_data[1] , cls.layer_data[2] = boundaryLayerThickness( np.abs( cls.rake0.data['y'] ) , cls.rake0.data['U'][:,0] )
+            # Shape factor
+            cls.layer_data += [ cls.layer_data[1] / cls.layer_data[2] ]
+            # Shear parameters
+            cls.layer_data += [0]*2
+            cls.layer_data[-2] , cls.layer_data[-1] = shearConditions( np.abs( cls.rake0.data['y'] ) , cls.rake0.data['U'][:,0] , cls.nu )
+            # Reynolds numbers
+            cls.layer_data += [0]*3
+            cls.layer_data[-3] = ReynoldsNumber( 0 , cls.nu , u = cls.rake0.data['U'][:,0] )
+            cls.layer_data[-2] = ReynoldsNumber( cls.layer_data[2] , cls.nu , u = cls.rake0.data['U'][:,0] )
+            cls.layer_data[-1] = ReynoldsNumber( cls.layer_data[0] , cls.nu , U_inf = cls.layer_data[3] )
+
+            #
+            # Calculate normalized error
+            #
+            cls.layer_errors = np.asarray( cls.layer_data ) / cls.boundaryLayer_data - 1
+            cls.layer_errorNorm = np.linalg.norm( cls.layer_errors )
+            print("\tLayer norm:\t{x:.3f}".format(x=cls.layer_errorNorm))
+
+            if store_data:
+                cls.layer_data+=[cls.layer_data]
+                cls.layers_errors+=[cls.layer_errors]
+            cls.net_errors+=[cls.layer_errorNorm]
+
+        cls.x_bestfit = np.interp( 0 , cls.net_errors , cls.x_vals  )
+
+    def recycledBLPull( cls , target="default" , turbulence_headers=None , separated=False , p_value=None ):
+
+        y_points = np.append( [0] , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) )
+        x_points = cls.x_bestfit * np.ones_like( y_points )
+        z_points = np.zeros_like( y_points )
+        cls.rake_BL = rake( ( x_points , y_points , z_points ) , cls.datafile )
+        
+        if target.lower()=="default":
+
+            cls.rake_BL.dataToPandas()
+            cls.df_export=cls.rake_BL.data_df
+
+            if p_value:
+                cls.df_export["p"]=p_value
+
+            cls.columns_to_export=[ "y" , "Ux" , "Uy" , "Uz"  ]
+
+            if not separated:
+                cls.columns_to_export+=[ "p" ]
+
+                if not turbulence_headers==None:
+                    cls.columns_to_export+=turbulence_headers
+
+                cls.df_export[cls.columns_to_export].to_csv("recycled_profile.csv",index=False)
+
+            else:
+
+                cls.df_export[cls.columns_to_export].to_csv("recycled_velocity_profile.csv",index=False)
+
+                if turbulence_headers:
+                    for i,t in enumerate( turbulence_headers ):
+                        cls.df_export[["y",t]].to_csv("recycled_"+t+"_profile.csv",index=False)
+                
+                cls.df_export[["y","p"]].to_csv("recycled_"+t+"_profile.csv",index=False)
+
+        if target.lower()=="openfoam":
+
+            cls.rake_BL.dataToDictionary()
+            cls.data_export=cls.rake_BL.data
+
+            #
+            # Export full
+            #
+            if separated:
+
+                cls.sorted_u_data = sorted( zip( cls.data_export["y"], cls.data_export["U"] ), key=lambda x: x[0] )
+
+                formatted_data=["("]
+                formatted_data += [ f"({cls.sorted_u_data[i][0]} ({cls.sorted_u_data[i][1][0]} {cls.sorted_u_data[i][1][1]} {cls.sorted_u_data[i][1][2]}))" for i in range( len( cls.sorted_u_data ) )]
+                formatted_data+=[")"]
+
+                with open("recycled_velocity_profile.dat",'w') as f:
+                    for line in formatted_data:
+                        f.write( line + "\n" )
+
+                for j , t in enumerate( turbulence_headers ):
+                    cls.sorted_t_data = sorted( zip( cls.data_export["y"] , cls.data_export[t] ) , key=lambda x: x[0] )
+
+                    formatted_data=["("]
+                    formatted_data += [ f"({cls.sorted_t_data[i][0]} {cls.sorted_t_data[i][1]})" for i in range( len( cls.sorted_t_data ) )]
+                    formatted_data+=[")"]
+
+                    with open("recycled_"+t+"_profile.dat",'w') as f:
+                        for line in formatted_data:
+                            f.write( line + "\n" )
+
+                #cls.sorted_p_data = sorted( zip( cls.data_export["y"] , cls.data_export["p"] ) , key=lambda x: x[0] )
+
+                print("Hello there")
 
 ###################################################################################################
 #

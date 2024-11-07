@@ -489,7 +489,11 @@ class rake:
         for i in range(self.num_point_arrays):
             array_name = self.point_data.GetArrayName(i)
             self.array_headers += [array_name]
+        print("Available headers:\t"+str(self.array_headers))
 
+        del self.data
+        del self.resample
+        
     def dataToDictionary( cls ):
         """
         Transfers the data from the Paraview-native format to a Python-native format of a
@@ -518,6 +522,8 @@ class rake:
             data_vtk = cls.resampled_output.GetPointData().GetArray( d )
             data_np = nps.vtk_to_numpy( data_vtk )
             cls.data[d] = data_np
+
+        del cls.resampled_output
 
     def dataToPandas( cls , coords = ['x', 'y', 'z'] ):
         """
@@ -548,6 +554,8 @@ class rake:
                     cls.data_df[data_name] = data_np[:,j]
             else:
                 cls.data_df[d] = data_np
+
+        del cls.resampled_output
 
 class pointDistribution:
     """
