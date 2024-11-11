@@ -842,35 +842,80 @@ class caseReader:
         if len(dirs) == 1:
             os.chdir(dirs[0])
             print(f"Changed directory to: {dirs[0]}")
+
+            # Read the table, skipping the comment lines
+            if not residualfile:
+                residualfile = "residuals.dat"    
+
+            if preprocess:
+                # Read all lines from the file
+                with open(residualfile, "r") as file:
+                    lines = file.readlines()
+
+                # Modify the second line by removing its first character
+                lines[1] = lines[1][1:]
+
+                # Delete the third line
+                lines.pop(2)
+
+                # Write the modified content back to the file
+                with open(residualfile, "w") as file:
+                    file.writelines(lines)
+
+            if headers:
+                cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#' , na_values=0 )
+            else:
+                cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#', header=0)
+            
+            cls.df_residuals.columns = cls.df_residuals.columns.str.strip()
+
         else:
             print("Error: There is not exactly one directory present.")
-            os.chdir(dirs[-1])
+            #os.chdir(dirs[-1])
 
-        # Read the table, skipping the comment lines
-        if not residualfile:
-            residualfile = "residuals.dat"    
+            # Read the table, skipping the comment lines
+            if not residualfile:
+                residualfile = "residuals.dat"
 
-        if preprocess:
-            # Read all lines from the file
-            with open(residualfile, "r") as file:
-                lines = file.readlines()
+            for i , d in enumerate( dirs ):
 
-            # Modify the second line by removing its first character
-            lines[1] = lines[1][1:]
+                os.chdir( d )    
 
-            # Delete the third line
-            lines.pop(2)
+                if preprocess:
+                    # Read all lines from the file
+                    with open(residualfile, "r") as file:
+                        lines = file.readlines()
 
-            # Write the modified content back to the file
-            with open(residualfile, "w") as file:
-                file.writelines(lines)
-        if headers:
-            cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#' , na_values=0 )
-        else:
-            cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#', header=0)
+                    # Modify the second line by removing its first character
+                    lines[1] = lines[1][1:]
+
+                    # Delete the third line
+                    lines.pop(2)
+
+                    # Write the modified content back to the file
+                    with open(residualfile, "w") as file:
+                        file.writelines(lines)
+
+                if i>0:
+                    if headers:
+                        df_hold = pd.read_csv( residualfile , delimiter="\t", comment='#' , na_values=0 )
+                    else:
+                        df_hold = pd.read_csv( residualfile , delimiter="\t", comment='#', header=0)
+                    
+                    df_hold.columns = df_hold.columns.str.strip()
+
+                    cls.df_residuals = cls.df_residuals.append( df_hold , ignore_index=True )
+                
+
+                else:
+                    if headers:
+                        cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#' , na_values=0 )
+                    else:
+                        cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#', header=0)
+                    
+                    cls.df_residuals.columns = cls.df_residuals.columns.str.strip()
+
         
-        cls.df_residuals.columns = cls.df_residuals.columns.str.strip()
-
         # Plot the data
         os.chdir( cls.working_directory )
         if img_directory:
