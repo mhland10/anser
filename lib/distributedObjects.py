@@ -10,6 +10,8 @@ This library contains all of the objects that Anser uses to read and process CFD
 import numpy as np
 import paraview.simple as pasi
 import vtk.util.numpy_support as nps
+import vtk
+import sys
 import pandas as pd
 
 ###################################################################################################
@@ -475,24 +477,36 @@ class rake:
         """
 
         # Pull data from rake
-        self.data = pasi.OpenDataFile( datafile )
-        self.resample = pasi.ResampleWithDataset()
-        self.resample.SourceDataArrays = [data]
-        self.resample.DestinationMesh = programmableSource
+        data = pasi.OpenDataFile( datafile )
+        resample = pasi.ResampleWithDataset()
+        resample.SourceDataArrays = [data]
+        resample.DestinationMesh = programmableSource
         pasi.UpdatePipeline()
 
         # Put data in
-        self.resampled_output = pasi.servermanager.Fetch(self.resample)
-        self.point_data = self.resampled_output.GetPointData()
-        self.num_point_arrays = self.point_data.GetNumberOfArrays()
+        self.resampled_output = pasi.servermanager.Fetch(resample)
+        point_data = self.resampled_output.GetPointData()
+        num_point_arrays = point_data.GetNumberOfArrays()
         self.array_headers = []
-        for i in range(self.num_point_arrays):
-            array_name = self.point_data.GetArrayName(i)
+        for i in range(num_point_arrays):
+            array_name = point_data.GetArrayName(i)
             self.array_headers += [array_name]
         print("Available headers:\t"+str(self.array_headers))
 
-        del self.data
-        del self.resample
+        pasi.Delete( data )
+        pasi.Delete( resample )
+        pasi.Delete( programmableSource )
+        del data
+        del resample
+        del programmableSource
+
+        # Restore standard output and error to the default
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        # Optionally suppress VTK messages entirely
+        vtk_output_window = vtk.vtkStringOutputWindow()
+        vtk.vtkOutputWindow.SetInstance(vtk_output_window)
         
     def dataToDictionary( cls ):
         """
@@ -564,7 +578,7 @@ class pointDistribution:
 
     """
 
-    def __init__( self , L , ds , s_0 , normal=(0,1,0) ):
+    def __init__( self , L , ds , s_0 , normal=(0,1,0) , LHS_endpoint=None , RHS_endpoint=None ):
         """
         Create a point distribution that corresponds to the inputs to initialize the point
             distribution object.
@@ -579,6 +593,12 @@ class pointDistribution:
                             [ x_0 , y_0 , z_0 ]
 
             normal (float, optional):   The normal vector for the points to follow.
+
+            LHS_endpoint [float, optional]: The overide coordinates of the first point in
+                                                the point distribution.
+
+            RHS_endpoint [float, optional]: The overide coordinates of the last point in
+                                                the point distribution.
 
         Attributes:
             L (float)   <- L
@@ -619,23 +639,35 @@ class pointDistribution:
         z_step = np.abs( ds*normal[2] )
 
         if np.abs(x_L)>0:
-            self.x = np.arange( x_st , x_sp+x_step , x_step )
+            self.x = np.arange( x_st , x_sp+x_step/10 , x_step )
             if np.abs(y_L)==0:
-                self.y = np.zeros_like( self.x )
+                self.y = y_st * np.ones_like( self.x )
             if np.abs(z_L)==0:
-                self.z = np.zeros_like( self.x )
+                self.z = z_st * np.ones_like( self.y )
         if np.abs(y_L)>0:
-            self.y = np.arange( y_st , y_sp+y_step , y_step )
+            self.y = np.arange( y_st , y_sp+y_step/10 , y_step )
             if np.abs(x_L)==0:
-                self.x = np.zeros_like( self.y )
+                self.x = x_st * np.ones_like( self.y )
             if np.abs(z_L)==0:
-                self.z = np.zeros_like( self.y )
+                self.z = z_st * np.ones_like( self.y )
         if np.abs(z_L)>0:
-            self.z = np.arange( z_st , z_sp+z_step , z_step )
+            self.z = np.arange( z_st , z_sp+z_step/10 , z_step )
             if np.abs(x_L)==0:
                 self.x = np.zeros_like( self.z )
             if np.abs(y_L)==0:
                 self.y = np.zeros_like( self.z )
+
+        #
+        # Add in override points
+        #
+        if not LHS_endpoint==None:
+            self.x[0]=LHS_endpoint[0]
+            self.y[0]=LHS_endpoint[1]
+            self.z[0]=LHS_endpoint[2]
+        if not RHS_endpoint==None:
+            self.x[-1]=RHS_endpoint[0]
+            self.y[-1]=RHS_endpoint[1]
+            self.z[-1]=RHS_endpoint[2]
 
 
     def logInsert( cls , c_0 , l , N ):
@@ -656,21 +688,21 @@ class pointDistribution:
         if np.abs(x_L)>0:
             cls.x_log = (x_st/np.abs(x_st)) * np.logspace( np.log10(np.abs(x_st)) , np.log10(np.abs(x_sp)) , num=N)
         else:
-            cls.x_log = np.zeros( N )
+            cls.x_log = x_st * np.ones( N )
         y_L = l*cls.normal[1]
         y_st = np.minimum( c_0[1] , c_0[1]+y_L )
         y_sp = np.maximum( c_0[1] , c_0[1]+y_L )
         if np.abs(y_L)>0:
             cls.y_log = (y_st/np.abs(y_st)) * np.logspace( np.log10(np.abs(y_st)) , np.log10(np.abs(y_sp)) , num=N)
         else:
-            cls.y_log = np.zeros( N )
+            cls.y_log = y_st * np.ones( N )
         z_L = l*cls.normal[2]
         z_st = np.minimum( c_0[2] , c_0[2]+z_L )
         z_sp = np.maximum( c_0[2] , c_0[2]+z_L )
         if np.abs(y_L)>0:
             cls.z_log = (z_st/np.abs(z_st)) * np.logspace( np.log10(np.abs(z_st)) , np.log10(np.abs(z_sp)) , num=N)
         else:
-            cls.z_log = np.zeros( N )
+            cls.z_log = z_st * np.ones( N )
 
         #
         # Insert the log distributions
