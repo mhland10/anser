@@ -571,6 +571,52 @@ class rake:
 
         del cls.resampled_output
 
+    def flowData( cls , nu , side=None , dataDictionaryFormat="pandas" , x_offset=0 ):
+        """
+        This method provides flow data for the rake, assuming proximity to a wall. 
+
+
+        Args:
+            side (string, optional):    The side that the wall is on. The two available options are:
+
+                                        -"LHS": The side of the rake with the lower index values.
+
+                                        -"RHS": The side of the rake with the higher index values.
+
+                                        The default is None, (TODO:NOPE) which automatically detects the wall. Not
+                                            case sensitive.
+
+        Raises:
+            ValueError: _description_
+        """
+
+
+        if side.lower()=="lhs":
+            print("Left hand side")
+        elif side.lower()=="rhs":
+            print("Right hand side")
+
+            if dataDictionaryFormat.lower()=="pandas":
+                print("Pandas data")
+
+                cls.u = cls.data_df["Ux"].values[::-1]
+                cls.y = cls.data_df["y"].values[::-1]
+                cls.x = cls.data_df["x"].values[-1] - x_offset
+                cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
+                cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
+                cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
+                cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
+                cls.Re_theta = ReynoldsNumber( cls.theta , nu , u = cls.u )
+                cls.Re_tau = ReynoldsNumber( cls.delta , nu , U_inf=cls.u_tau )
+                cls.delta_x = cls.delta / cls.x
+                cls.delta_star_x = cls.delta_star / cls.x
+                cls.theta_x = cls.theta / cls.x
+                cls.H = cls.delta_star / cls.theta
+
+
+        #elif side==None:
+            
+
 class pointDistribution:
     """
     This object allows the user to create point distribution that can be used for the post-
