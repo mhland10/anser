@@ -308,7 +308,7 @@ class recycledBoundaryLayer:
         # Boundary Layer Data
         #
         self.boundaryLayer_data = boundaryLayer_data
-        self.data_weights = data_weights
+        self.data_weights = np.asarray( data_weights )
 
         self.datafile = datafile
 
@@ -406,7 +406,7 @@ class recycledBoundaryLayer:
 
         cls.x_bestfit=np.mean([boundLHS,boundRHS])
 
-    def interpolationSearch( cls , N_points, store_data=True ):
+    def interpolationSearch( cls , N_points, store_data=True , xMin=True ):
         """
         Find the best location for the recycled BL from an interpolation of minimum error.
 
@@ -426,6 +426,7 @@ class recycledBoundaryLayer:
         cls.layers_data=[]
         cls.layers_errors=[]
         cls.net_errors=[]
+        cls.data_length={ "delta":[] , "delta*":[] , "theta":[] , "H":[] , "C_f":[] , "u_tau":[] , "Re_x":[] , "Re_theta":[] , "Re_tau":[] , "errors":[] , "L2_error":[]}
 
         for i in range( N_points ):
             
@@ -445,7 +446,7 @@ class recycledBoundaryLayer:
             cls.layer_data += [ cls.layer_data[1] / cls.layer_data[2] ]
             # Shear parameters
             cls.layer_data += [0]*2
-            cls.layer_data[-2] , cls.layer_data[-1] = shearConditions( np.abs( cls.rake0.data['y'] ) , cls.rake0.data['U'][:,0] , cls.nu )
+            cls.layer_data[-1] , cls.layer_data[-2] = shearConditions( np.abs( cls.rake0.data['y'] ) , cls.rake0.data['U'][:,0] , cls.nu )
             # Reynolds numbers
             cls.layer_data += [0]*3
             cls.layer_data[-3] = ReynoldsNumber( 0 , cls.nu , u = cls.rake0.data['U'][:,0] )
@@ -455,16 +456,33 @@ class recycledBoundaryLayer:
             #
             # Calculate normalized error
             #
-            cls.layer_errors = np.asarray( cls.layer_data ) / cls.boundaryLayer_data - 1
-            cls.layer_errorNorm = np.linalg.norm( cls.layer_errors )
+            cls.layer_errors = ( np.asarray( cls.layer_data ) / cls.boundaryLayer_data - 1 ) * cls.data_weights
+            cls.layer_errorNorm = np.linalg.norm( cls.layer_errors ) / np.sum( cls.data_weights )
             print("\tLayer norm:\t{x:.3f}".format(x=cls.layer_errorNorm))
 
             if store_data:
-                cls.layer_data+=[cls.layer_data]
                 cls.layers_errors+=[cls.layer_errors]
+                cls.data_length["delta"]+=[cls.layer_data[0]]
+                cls.data_length["delta*"]+=[cls.layer_data[1]]
+                cls.data_length["theta"]+=[cls.layer_data[2]]
+                cls.data_length["H"]+=[cls.layer_data[3]]
+                cls.data_length["C_f"]+=[cls.layer_data[4]]
+                cls.data_length["u_tau"]+=[cls.layer_data[5]]
+                cls.data_length["Re_x"]+=[cls.layer_data[6]]
+                cls.data_length["Re_theta"]+=[cls.layer_data[7]]
+                cls.data_length["Re_tau"]+=[cls.layer_data[8]]
+                cls.data_length["errors"]+=[cls.layer_errors]
+                cls.data_length["L2_error"]+=[cls.layer_errorNorm]
             cls.net_errors+=[cls.layer_errorNorm]
 
-        cls.x_bestfit = np.interp( 0 , cls.net_errors , cls.x_vals  )
+        if xMin:
+            cls.x_bestfit = cls.x_vals[ np.argmin( cls.net_errors) ]
+        else:
+            cls.x_bestfit = np.interp( 0 , cls.net_errors , cls.x_vals  )
+
+        if store_data:
+            cls.df_data = pd.DataFrame( cls.data_length )
+            cls.df_data.to_csv("recycle_fit_data.csv", index=False )
 
     def recycledBLPull( cls , target="default" , turbulence_headers=None , separated=False , p_value=None ):
 
@@ -501,7 +519,7 @@ class recycledBoundaryLayer:
                 
                 cls.df_export[["y","p"]].to_csv("recycled_"+t+"_profile.csv",index=False)
 
-        if target.lower()=="openfoam":
+        elif target.lower()=="openfoam":
 
             cls.rake_BL.dataToDictionary()
             cls.data_export=cls.rake_BL.data
