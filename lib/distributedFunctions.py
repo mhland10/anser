@@ -277,7 +277,7 @@ def shearConditions( y , u , nu , U_inf=None ):
 
         nu (float):     [m2/s] Kinematic viscosity.
 
-        UU_inf (float, optional):    The freestream velocity of the flow profile. Defaults to None, 
+        U_inf (float, optional):    The freestream velocity of the flow profile. Defaults to None, 
                                         which makes the freestream velocity the maximum velocity of
                                         "u".
 
@@ -294,6 +294,7 @@ def shearConditions( y , u , nu , U_inf=None ):
         U_inf = np.max( u )
 
     # Calculate shear velocity
+    print("tau_w:\t{x:.3f}".format(x=np.abs( ( u[1] - u[0] ) / ( y[1] - y[0] ) )))
     u_tau = np.sqrt( nu * np.abs( ( u[1] - u[0] ) / ( y[1] - y[0] ) ) )
     
     # Skin friction coefficient
