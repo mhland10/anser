@@ -606,7 +606,7 @@ class rake:
                 cls.y = cls.y * ( cls.y / np.abs( cls.y ) )
                 cls.x = cls.data_df["x"].values[-1] - x_offset
                 cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
-                cls.u_tau , cls.C_f = shearConditions( [ cls.y[0] , cls.y[1] ] , [ cls.u[0] , cls.u[1] ] , nu )
+                cls.u_tau , cls.C_f = shearConditions( [ cls.y[0] , cls.y[10] ] , [ cls.u[0] , cls.u[10] ] , nu )
                 print("u_tau:\t{x:.3f}".format(x=cls.u_tau))
                 cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
                 cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
