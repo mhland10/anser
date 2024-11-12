@@ -603,6 +603,7 @@ class rake:
 
                 cls.u = cls.data_df["Ux"].values[::-1]
                 cls.y = cls.data_df["y"].values[::-1]
+                cls.y = cls.y * ( cls.y / np.abs( cls.y ) )
                 cls.x = cls.data_df["x"].values[-1] - x_offset
                 cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
                 cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
