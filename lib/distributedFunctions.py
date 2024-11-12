@@ -294,7 +294,11 @@ def shearConditions( y , u , nu , U_inf=None ):
         U_inf = np.max( u )
 
     # Calculate shear velocity
-    print("tau_w:\t{x:.3f}".format(x=np.abs( ( u[1] - u[0] ) / ( y[1] - y[0] ) )))
+    dy = y[1] - y[0]
+    print("dy:\t{x:.3e}".format(x=dy))
+    du = u[1] - u[0]
+    print("du:\t{x:.3e}".format(x=du))
+    print("tau_w:\t{x:.3f}".format(x=np.abs( du / dy )))
     u_tau = np.sqrt( nu * np.abs( ( u[1] - u[0] ) / ( y[1] - y[0] ) ) )
     
     # Skin friction coefficient
