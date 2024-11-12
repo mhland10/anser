@@ -14,6 +14,8 @@ import vtk
 import sys
 import pandas as pd
 
+from distributedFunctions import * 
+
 ###################################################################################################
 #
 # Data Objects
