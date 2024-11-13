@@ -12,6 +12,7 @@ import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from natsort import *
 
 ###################################################################################################
 #
@@ -854,7 +855,7 @@ class caseReader:
         os.chdir( "./postProcessing/residuals/" )
 
         # List only directories in the current directory
-        dirs = [d for d in os.listdir() if os.path.isdir(d)]
+        dirs = sorted( [d for d in os.listdir() if os.path.isdir(d)] )
 
         # Check if there is only one directory
         if len(dirs) == 1:
@@ -898,7 +899,7 @@ class caseReader:
             print("In "+os.getcwd())
             print("The available directories are:\t"+str(dirs))
 
-            for i , d in enumerate( dirs[::-1] ):
+            for i , d in enumerate( dirs ):
 
                 print("\tMoving to "+d)
 
