@@ -895,9 +895,14 @@ class caseReader:
             if not residualfile:
                 residualfile = "residuals.dat"
 
-            for i , d in enumerate( dirs ):
+            print("In "+os.getcwd())
+            print("The available directories are:\t"+str(dirs))
 
-                os.chdir( d )    
+            for i , d in enumerate( dirs[::-1] ):
+
+                print("\tMoving to "+d)
+
+                os.chdir( "./"+d+"/" )    
 
                 if preprocess:
                     # Read all lines from the file
@@ -922,7 +927,7 @@ class caseReader:
                     
                     df_hold.columns = df_hold.columns.str.strip()
 
-                    cls.df_residuals = cls.df_residuals.append( df_hold , ignore_index=True )
+                    cls.df_residuals = pd.concat( [ cls.df_residuals , df_hold ] , ignore_index=True)
                 
 
                 else:
@@ -932,6 +937,8 @@ class caseReader:
                         cls.df_residuals = pd.read_csv( residualfile , delimiter="\t", comment='#', header=0)
                     
                     cls.df_residuals.columns = cls.df_residuals.columns.str.strip()
+
+                os.chdir("../")
 
         
         # Plot the data
