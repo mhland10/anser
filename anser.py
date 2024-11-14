@@ -407,7 +407,7 @@ class recycledBoundaryLayer:
 
         cls.x_bestfit=np.mean([boundLHS,boundRHS])
 
-    def interpolationSearch( cls , N_points, store_data=True , xMin=True ):
+    def interpolationSearch( cls , N_points, store_data=True , xMin=True , x_lead=0 ):
         """
         Find the best location for the recycled BL from an interpolation of minimum error.
 
@@ -480,6 +480,9 @@ class recycledBoundaryLayer:
             cls.x_bestfit = cls.x_vals[ np.argmin( cls.net_errors) ]
         else:
             cls.x_bestfit = np.interp( 0 , cls.net_errors , cls.x_vals  )
+
+        if np.abs( x_lead ) >= 0:
+            cls.x_bestfit += x_lead
 
         if store_data:
             cls.df_data = pd.DataFrame( cls.data_length )
@@ -855,7 +858,7 @@ class caseReader:
         os.chdir( "./postProcessing/residuals/" )
 
         # List only directories in the current directory
-        dirs = sorted( [d for d in os.listdir() if os.path.isdir(d)] )
+        dirs = sorted( [d for d in os.listdir() if os.path.isdir(d)] , key=float )
 
         # Check if there is only one directory
         if len(dirs) == 1:
