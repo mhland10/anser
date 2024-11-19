@@ -509,6 +509,9 @@ class rake:
         # Optionally suppress VTK messages entirely
         vtk_output_window = vtk.vtkStringOutputWindow()
         vtk.vtkOutputWindow.SetInstance(vtk_output_window)
+        vtk.vtkOutputWindow.GetInstance().SetGlobalWarningDisplay(False)
+
+        self.data_loc = "vtk"
         
     def dataToDictionary( cls ):
         """
@@ -539,7 +542,9 @@ class rake:
             data_np = nps.vtk_to_numpy( data_vtk )
             cls.data[d] = data_np
 
-        del cls.resampled_output
+        #del cls.resampled_output
+
+        cls.data_loc = "dictionary"
 
     def dataToPandas( cls , coords = ['x', 'y', 'z'] ):
         """
@@ -571,7 +576,86 @@ class rake:
             else:
                 cls.data_df[d] = data_np
 
-        del cls.resampled_output
+        cls.data_loc = "pandas"
+
+        #del cls.resampled_output
+
+    def coordinateChange( cls , coord_tol=1e-6 ):
+        """
+        This method takes the data on the rake and transforms it into the coordinate system defined by
+            the rake of normal, tangent, 2nd tangent.
+
+        If one wants a better reference for the methods, one should read:
+
+        Advanced Engineering Mathematics, 6th edition: Chapter 9. By Zill.
+
+        """
+
+        if cls.data_loc.lower()=="pandas":
+            
+            #
+            # Calculate the unit vectors
+            #
+            cls.C = np.asarray( [ cls.data_df["Cx"].values , cls.data_df["Cy"].values , cls.data_df["Cz"].values ] )
+
+            cls.dC = np.gradient( cls.C , axis=1 )
+            cls.tangent_vector = cls.dC / np.linalg.norm( cls.dC , axis=0 )
+
+            cls.dtangent_vector = np.gradient( cls.tangent_vector , axis=1 )
+            cls.normal_vector = np.nan_to_num( cls.dtangent_vector / np.linalg.norm( cls.dtangent_vector , axis=0 ) , nan=0 )
+
+            with open("output.txt", "w") as file:
+                    # Write the content
+
+                for i , t in enumerate( cls.tangent_vector.T ):
+
+                    cls.normal_vector[:,i]=np.zeros_like(t)
+
+                    #file.write(f"For {i}:\n")
+                    #file.write(f"\tTangent vector:\t{str(t)}\n")
+
+                    if np.abs( np.abs(t[0])-1 ) <= coord_tol:
+
+                        #file.write("\tNormal vector to y\n")
+                        cls.normal_vector[1,i]=1
+
+                    elif np.abs( np.abs(t[1])-1 ) <= coord_tol:
+
+                        #file.write("\tNormal vector to x\n")
+                        cls.normal_vector[0,i]=1
+
+                    elif np.abs( np.abs(t[2])-1 ) <= coord_tol:
+
+                        #file.write("\tNormal vector to x\n")
+                        cls.normal_vector[0,i]=1
+
+            cls.binormal_vector = np.cross( cls.tangent_vector , cls.normal_vector , axis=0 )
+
+            #
+            # Transform velocity
+            #
+            cls.U = np.asarray( [ cls.data_df["Ux"].values , cls.data_df["Uy"].values , cls.data_df["Uz"].values ] )
+
+            cls.U_r = np.zeros_like( cls.U )
+
+            for i in range( np.shape( cls.U )[-1] ):
+
+                cls.U_r[1,i] = np.dot( cls.tangent_vector[:,i] , cls.U[:,i] )
+                cls.U_r[0,i] = np.dot( cls.normal_vector[:,i] , cls.U[:,i] )
+                cls.U_r[2,i] = np.dot( cls.binormal_vector[:,i] , cls.U[:,i] )
+
+            #cls.data_df["C_n"] = cls.normal_vector
+            #cls.data_df["C_t"] = cls.tangent_vector
+            #cls.data_df["C_b"] = cls.binormal_vector
+
+            cls.data_df["U_n"] = cls.U_r[0,:]
+            cls.data_df["U_t"] = cls.U_r[1,:]
+            cls.data_df["U_b"] = cls.U_r[2,:]
+
+
+
+                
+
 
     def flowData( cls , nu , side=None , dataDictionaryFormat="pandas" , x_offset=0 ):
         """
@@ -630,7 +714,7 @@ class pointDistribution:
 
     """
 
-    def __init__( self , L , ds , s_0 , normal=(0,1,0) , LHS_endpoint=None , RHS_endpoint=None ):
+    def __init__( self , L , ds , s_0 , normal=(0,1,0) , s_end=None , LHS_endpoint=None , RHS_endpoint=None ):
         """
         Create a point distribution that corresponds to the inputs to initialize the point
             distribution object.
@@ -645,6 +729,8 @@ class pointDistribution:
                             [ x_0 , y_0 , z_0 ]
 
             normal (float, optional):   The normal vector for the points to follow.
+
+            s_end (float, optional):    The end point for the 
 
             LHS_endpoint [float, optional]: The overide coordinates of the first point in
                                                 the point distribution.
@@ -672,42 +758,76 @@ class pointDistribution:
         #
         self.L = L
         self.ds = ds
+        self.N = int( L / ds )
         self.normal = normal / np.linalg.norm( normal )
 
         #
         # Create uniform point distribution
         #
-        x_L = L*self.normal[0]
-        x_st = np.minimum( s_0[0] , s_0[0]+x_L )
-        x_sp = np.maximum( s_0[0] , s_0[0]+x_L )
-        x_step = np.abs( ds*normal[0] )
-        y_L = L*self.normal[1]
-        y_st = np.minimum( s_0[1] , s_0[1]+y_L )
-        y_sp = np.maximum( s_0[1] , s_0[1]+y_L )
-        y_step = np.abs( ds*normal[1] )
-        z_L = L*self.normal[2]
-        z_st = np.minimum( s_0[2] , s_0[2]+z_L )
-        z_sp = np.maximum( s_0[2] , s_0[2]+z_L )
-        z_step = np.abs( ds*normal[2] )
+        if s_end==None:
+
+            x_L = L*self.normal[0]
+            x_st = np.minimum( s_0[0] , s_0[0]+x_L )
+            x_sp = np.maximum( s_0[0] , s_0[0]+x_L )
+            x_step = np.abs( ds*normal[0] )
+            y_L = L*self.normal[1]
+            y_st = np.minimum( s_0[1] , s_0[1]+y_L )
+            y_sp = np.maximum( s_0[1] , s_0[1]+y_L )
+            y_step = np.abs( ds*normal[1] )
+            z_L = L*self.normal[2]
+            z_st = np.minimum( s_0[2] , s_0[2]+z_L )
+            z_sp = np.maximum( s_0[2] , s_0[2]+z_L )
+            z_step = np.abs( ds*normal[2] )
+
+        elif len( s_end )==3:
+
+            x_L = s_end[0] - s_0[0]
+            x_st = np.minimum( s_0[0] , s_end[0] )
+            x_sp = np.maximum( s_0[0] , s_end[0] )
+            y_L = s_end[1] - s_0[1]
+            y_st = np.minimum( s_0[1] , s_end[1] )
+            y_sp = np.maximum( s_0[1] , s_end[1] )
+            z_L = s_end[2] - s_0[2]
+            z_st = np.minimum( s_0[2] , s_end[2] )
+            z_sp = np.maximum( s_0[2] , s_end[2] )
+
+            x_step = ds * x_L / np.linalg.norm( [ x_L , y_L , z_L ] )
+            y_step = ds * y_L / np.linalg.norm( [ x_L , y_L , z_L ] )
+            z_step = ds * z_L / np.linalg.norm( [ x_L , y_L , z_L ] )
+
+            print(f"Length:\t({x_L}, {y_L}, {z_L})")
+            print(f"Step\t({x_step}, {y_step}, {z_step})")
+
+            self.normal = [ x_L , y_L , z_L ] / np.linalg.norm( [ x_L , y_L , z_L ] )
+
+        else:
+
+            raise ValueError( "Invalid option. Must be point & normal or point & point" )
+
 
         if np.abs(x_L)>0:
-            self.x = np.arange( x_st , x_sp+x_step/10 , x_step )
+            print("Putting in x-values")
+            #self.x = np.arange( x_st , x_sp+x_step/10 , np.abs( x_step ) )
+            self.x = np.linspace( x_st , x_sp , num=self.N )
             if np.abs(y_L)==0:
                 self.y = y_st * np.ones_like( self.x )
             if np.abs(z_L)==0:
-                self.z = z_st * np.ones_like( self.y )
+                self.z = z_st * np.ones_like( self.x )
         if np.abs(y_L)>0:
-            self.y = np.arange( y_st , y_sp+y_step/10 , y_step )
+            print("Putting in y-values")
+            #self.y = np.arange( y_st , y_sp+y_step/10 , np.abs( y_step ) )
+            self.y = np.linspace( y_st , y_sp , num=self.N)
             if np.abs(x_L)==0:
                 self.x = x_st * np.ones_like( self.y )
             if np.abs(z_L)==0:
                 self.z = z_st * np.ones_like( self.y )
         if np.abs(z_L)>0:
-            self.z = np.arange( z_st , z_sp+z_step/10 , z_step )
+            #self.z = np.arange( z_st , z_sp+z_step/10 , np.abs( z_step ) )
+            self.z = np.linspace( z_st , z_sp , num=self.N )
             if np.abs(x_L)==0:
-                self.x = np.zeros_like( self.z )
+                self.x = x_st * np.ones_like( self.z )
             if np.abs(y_L)==0:
-                self.y = np.zeros_like( self.z )
+                self.y = y_st * np.ones_like( self.z )
 
         #
         # Add in override points
@@ -722,7 +842,7 @@ class pointDistribution:
             self.z[-1]=RHS_endpoint[2]
 
 
-    def logInsert( cls , c_0 , l , N ):
+    def logInsert( cls , c_0 , l , N , side="RHS" ):
 
         if not hasattr( cls , "x_logs" ):
             cls.x_logs=[]
@@ -738,21 +858,21 @@ class pointDistribution:
         x_st = np.minimum( c_0[0] , c_0[0]+x_L )
         x_sp = np.maximum( c_0[0] , c_0[0]+x_L )
         if np.abs(x_L)>0:
-            cls.x_log = (x_st/np.abs(x_st)) * np.logspace( np.log10(np.abs(x_st)) , np.log10(np.abs(x_sp)) , num=N)
+            cls.x_log = cls.normal[0] * np.logspace( np.log10(np.abs(x_st)) , np.log10(np.abs(x_sp)) , num=N)
         else:
             cls.x_log = x_st * np.ones( N )
         y_L = l*cls.normal[1]
         y_st = np.minimum( c_0[1] , c_0[1]+y_L )
         y_sp = np.maximum( c_0[1] , c_0[1]+y_L )
         if np.abs(y_L)>0:
-            cls.y_log = (y_st/np.abs(y_st)) * np.logspace( np.log10(np.abs(y_st)) , np.log10(np.abs(y_sp)) , num=N)
+            cls.y_log = cls.normal[1] * np.logspace( np.log10(np.abs(y_st)) , np.log10(np.abs(y_sp)) , num=N)
         else:
             cls.y_log = y_st * np.ones( N )
         z_L = l*cls.normal[2]
         z_st = np.minimum( c_0[2] , c_0[2]+z_L )
         z_sp = np.maximum( c_0[2] , c_0[2]+z_L )
-        if np.abs(y_L)>0:
-            cls.z_log = (z_st/np.abs(z_st)) * np.logspace( np.log10(np.abs(z_st)) , np.log10(np.abs(z_sp)) , num=N)
+        if np.abs(z_L)>0:
+            cls.z_log = cls.normal[2] * np.logspace( np.log10(np.abs(z_st)) , np.log10(np.abs(z_sp)) , num=N)
         else:
             cls.z_log = z_st * np.ones( N )
 

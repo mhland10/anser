@@ -488,7 +488,7 @@ class recycledBoundaryLayer:
             cls.df_data = pd.DataFrame( cls.data_length )
             cls.df_data.to_csv("recycle_fit_data.csv", index=False )
 
-    def recycledBLPull( cls , target="default" , turbulence_headers=None , separated=False , p_value=None ):
+    def recycledBLPull( cls , target="default" , turbulence_headers=None , separated=False , p_value=None , passive_scalar=None ):
 
         y_points = np.append( [0] , -np.logspace( np.log10( cls.start_height ) , np.log10( cls.rake_length - cls.start_height ) , num = cls.N_samples ) )
         x_points = cls.x_bestfit * np.ones_like( y_points )
@@ -511,6 +511,9 @@ class recycledBoundaryLayer:
                 if not turbulence_headers==None:
                     cls.columns_to_export+=turbulence_headers
 
+                if not passive_scalar==None:
+                    cls.columns_to_export+=passive_scalar
+
                 cls.df_export[cls.columns_to_export].to_csv("recycled_profile.csv",index=False)
 
             else:
@@ -520,8 +523,12 @@ class recycledBoundaryLayer:
                 if turbulence_headers:
                     for i,t in enumerate( turbulence_headers ):
                         cls.df_export[["y",t]].to_csv("recycled_"+t+"_profile.csv",index=False)
+
+                if passive_scalar:
+                    for i,s in enumerate( passive_scalar ):
+                        cls.df_export[["y",s]].to_csv("recycled_"+s+"_profile.csv",index=False)
                 
-                cls.df_export[["y","p"]].to_csv("recycled_"+t+"_profile.csv",index=False)
+                cls.df_export[["y","p"]].to_csv("recycled_"+"p"+"_profile.csv",index=False)
 
         elif target.lower()=="openfoam":
 
