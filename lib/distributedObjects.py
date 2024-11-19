@@ -782,14 +782,14 @@ class pointDistribution:
         elif len( s_end )==3:
 
             x_L = s_end[0] - s_0[0]
-            x_st = np.minimum( s_0[0] , s_end[0] )
-            x_sp = np.maximum( s_0[0] , s_end[0] )
+            x_st = s_0[0]
+            x_sp = s_end[0]
             y_L = s_end[1] - s_0[1]
-            y_st = np.minimum( s_0[1] , s_end[1] )
-            y_sp = np.maximum( s_0[1] , s_end[1] )
+            y_st = s_0[1]
+            y_sp = s_end[1]
             z_L = s_end[2] - s_0[2]
-            z_st = np.minimum( s_0[2] , s_end[2] )
-            z_sp = np.maximum( s_0[2] , s_end[2] )
+            z_st = s_0[2]
+            z_sp = s_end[2]
 
             x_step = ds * x_L / np.linalg.norm( [ x_L , y_L , z_L ] )
             y_step = ds * y_L / np.linalg.norm( [ x_L , y_L , z_L ] )
@@ -842,7 +842,7 @@ class pointDistribution:
             self.z[-1]=RHS_endpoint[2]
 
 
-    def logInsert( cls , c_0 , l , N , side="RHS" ):
+    def logInsert( cls , c_0 , l , N , side=None ):
 
         if not hasattr( cls , "x_logs" ):
             cls.x_logs=[]
@@ -854,81 +854,135 @@ class pointDistribution:
         #
         # Create the log distributions
         #
-        x_L = l*cls.normal[0]
-        x_st = np.minimum( c_0[0] , c_0[0]+x_L )
-        x_sp = np.maximum( c_0[0] , c_0[0]+x_L )
-        if np.abs(x_L)>0:
-            cls.x_log = cls.normal[0] * np.logspace( np.log10(np.abs(x_st)) , np.log10(np.abs(x_sp)) , num=N)
+        if side.lower()=="lhs":
+
+            x_L = np.abs( l*cls.normal[0] )
+            y_L = np.abs( l*cls.normal[1] )
+            z_L = np.abs( l*cls.normal[2] )
+
+            if x_L>0:
+                cls.x_log = cls.x[0] + cls.normal[0] * ( c_0[0] / np.abs( c_0[0] ) ) * np.logspace( np.log10( np.abs( c_0[0] ) ) , np.log10( np.abs( c_0[0] ) + x_L ) , num = N )
+            else:
+                cls.x_log = cls.x[0] * np.ones(N)
+            if y_L>0:
+                cls.y_log = cls.y[0] + cls.normal[1] * ( c_0[1] / np.abs( c_0[1] ) ) * np.logspace( np.log10( np.abs( c_0[1] ) ) , np.log10( np.abs( c_0[1] ) + y_L ) , num = N )
+            else:
+                cls.y_log = cls.y[0] * np.ones(N)
+            if z_L>0:
+                cls.z_log = cls.z[0] + cls.normal[2] * ( c_0[2] / np.abs( c_0[2] ) ) * np.logspace( np.log10( np.abs( c_0[2] ) ) , np.log10( np.abs( c_0[2] ) + z_L ) , num = N )
+            else:
+                cls.z_log = cls.z[0] * np.ones(N)
+
+        elif side.lower()=="rhs":
+
+            x_L = np.abs( l*cls.normal[0] )
+            y_L = np.abs( l*cls.normal[1] )
+            z_L = np.abs( l*cls.normal[2] )
+        
+            if x_L>0:
+                cls.x_log = cls.x[-1] - cls.normal[0] * ( c_0[0] / np.abs( c_0[0] ) ) * np.logspace( np.log10( np.abs( c_0[0] ) ) , np.log10( np.abs( c_0[0] ) + x_L ) , num = N )
+            else:
+                cls.x_log = cls.x[-1] * np.ones(N)
+            if y_L>0:
+                cls.y_log = cls.y[-1] - cls.normal[1] * ( c_0[1] / np.abs( c_0[1] ) ) * np.logspace( np.log10( np.abs( c_0[1] ) ) , np.log10( np.abs( c_0[1] ) + y_L ) , num = N )
+            else:
+                cls.y_log = cls.y[-1] * np.ones(N)
+            if z_L>0:
+                cls.z_log = cls.z[-1] - cls.normal[2] * ( c_0[2] / np.abs( c_0[2] ) ) * np.logspace( np.log10( np.abs( c_0[2] ) ) , np.log10( np.abs( c_0[2] ) + z_L ) , num = N )
+            else:
+                cls.z_log = cls.z[-1] * np.ones(N)
+
         else:
-            cls.x_log = x_st * np.ones( N )
-        y_L = l*cls.normal[1]
-        y_st = np.minimum( c_0[1] , c_0[1]+y_L )
-        y_sp = np.maximum( c_0[1] , c_0[1]+y_L )
-        if np.abs(y_L)>0:
-            cls.y_log = cls.normal[1] * np.logspace( np.log10(np.abs(y_st)) , np.log10(np.abs(y_sp)) , num=N)
-        else:
-            cls.y_log = y_st * np.ones( N )
-        z_L = l*cls.normal[2]
-        z_st = np.minimum( c_0[2] , c_0[2]+z_L )
-        z_sp = np.maximum( c_0[2] , c_0[2]+z_L )
-        if np.abs(z_L)>0:
-            cls.z_log = cls.normal[2] * np.logspace( np.log10(np.abs(z_st)) , np.log10(np.abs(z_sp)) , num=N)
-        else:
-            cls.z_log = z_st * np.ones( N )
+
+            x_L = l*cls.normal[0]
+            x_st = np.minimum( c_0[0] , c_0[0]+x_L )
+            x_sp = np.maximum( c_0[0] , c_0[0]+x_L )
+            if np.abs(x_L)>0:
+                cls.x_log = cls.normal[0] * np.logspace( np.log10(np.abs(x_st)) , np.log10(np.abs(x_sp)) , num=N)
+            else:
+                cls.x_log = x_st * np.ones( N )
+            y_L = l*cls.normal[1]
+            y_st = np.minimum( c_0[1] , c_0[1]+y_L )
+            y_sp = np.maximum( c_0[1] , c_0[1]+y_L )
+            if np.abs(y_L)>0:
+                cls.y_log = cls.normal[1] * np.logspace( np.log10(np.abs(y_st)) , np.log10(np.abs(y_sp)) , num=N)
+            else:
+                cls.y_log = y_st * np.ones( N )
+            z_L = l*cls.normal[2]
+            z_st = np.minimum( c_0[2] , c_0[2]+z_L )
+            z_sp = np.maximum( c_0[2] , c_0[2]+z_L )
+            if np.abs(z_L)>0:
+                cls.z_log = cls.normal[2] * np.logspace( np.log10(np.abs(z_st)) , np.log10(np.abs(z_sp)) , num=N)
+            else:
+                cls.z_log = z_st * np.ones( N )
 
         #
         # Insert the log distributions
         #
-        if np.abs( cls.normal[0] )==np.max( np.abs( cls.normal ) ):
-            if np.min(cls.x)<np.min(cls.x_log):
-                cls.x_r = cls.x[cls.x<np.min(cls.x_log)]
-                cls.y_r = cls.y[cls.x<np.min(cls.x_log)]
-                cls.z_r = cls.z[cls.x<np.min(cls.x_log)]
-                cls.x_r = np.append( cls.x_r , cls.x_log )
-                cls.y_r = np.append( cls.y_r , cls.y_log )
-                cls.z_r = np.append( cls.z_r , cls.z_log )
-            else:
-                cls.x_r = cls.x_log
-                cls.y_r = cls.y_log
-                cls.z_r = cls.z_log
-            if np.max(cls.x)>np.max(cls.x_log):
-                cls.x_r = np.append( cls.x_r , cls.x[cls.x>np.max(cls.x_log)] )
-                cls.y_r = np.append( cls.y_r , cls.y[cls.x>np.max(cls.x_log)] )
-                cls.z_r = np.append( cls.z_r , cls.z[cls.x>np.max(cls.x_log)] )
-            
-        elif np.abs( cls.normal[1] )==np.max( np.abs( cls.normal ) ):
-            if np.min(cls.y)<np.min(cls.y_log):
-                cls.x_r = cls.x[cls.y<np.min(cls.y_log)]
-                cls.y_r = cls.y[cls.y<np.min(cls.y_log)]
-                cls.z_r = cls.z[cls.y<np.min(cls.y_log)]
-                cls.x_r = np.append( cls.x_r , cls.x_log )
-                cls.y_r = np.append( cls.y_r , cls.y_log )
-                cls.z_r = np.append( cls.z_r , cls.z_log )
-            else:
-                cls.x_r = cls.x_log
-                cls.y_r = cls.y_log
-                cls.z_r = cls.z_log
-            if np.max(cls.y)>np.max(cls.y_log):
-                cls.x_r = np.append( cls.x_r , cls.x[cls.y>np.max(cls.y_log)] )
-                cls.y_r = np.append( cls.y_r , cls.y[cls.y>np.max(cls.y_log)] )
-                cls.z_r = np.append( cls.z_r , cls.z[cls.y>np.max(cls.y_log)] )
+        if side.lower()=="lhs":
+
+            cls.x_r = np.append( cls.x_log , cls.x[1:] )
+            cls.y_r = np.append( cls.y_log , cls.y[1:] )
+            cls.z_r = np.append( cls.z_log , cls.z[1:] )
+
+        elif side.lower()=="rhs":
+
+            cls.x_r = np.append( cls.x[:-1] , cls.x_log[::-1] )
+            cls.y_r = np.append( cls.y[:-1] , cls.y_log[::-1] )
+            cls.z_r = np.append( cls.z[:-1] , cls.z_log[::-1] )
 
         else:
-            if np.min(cls.z)<np.min(cls.z_log):
-                cls.x_r = cls.x[cls.z<np.min(cls.z_log)]
-                cls.y_r = cls.y[cls.z<np.min(cls.z_log)]
-                cls.z_r = cls.z[cls.z<np.min(cls.z_log)]
-                cls.x_r = np.append( cls.x_r , cls.x_log )
-                cls.y_r = np.append( cls.y_r , cls.y_log )
-                cls.z_r = np.append( cls.z_r , cls.z_log )
+
+            if np.abs( cls.normal[0] )==np.max( np.abs( cls.normal ) ):
+                if np.min(cls.x)<np.min(cls.x_log):
+                    cls.x_r = cls.x[cls.x<np.min(cls.x_log)]
+                    cls.y_r = cls.y[cls.x<np.min(cls.x_log)]
+                    cls.z_r = cls.z[cls.x<np.min(cls.x_log)]
+                    cls.x_r = np.append( cls.x_r , cls.x_log )
+                    cls.y_r = np.append( cls.y_r , cls.y_log )
+                    cls.z_r = np.append( cls.z_r , cls.z_log )
+                else:
+                    cls.x_r = cls.x_log
+                    cls.y_r = cls.y_log
+                    cls.z_r = cls.z_log
+                if np.max(cls.x)>np.max(cls.x_log):
+                    cls.x_r = np.append( cls.x_r , cls.x[cls.x>np.max(cls.x_log)] )
+                    cls.y_r = np.append( cls.y_r , cls.y[cls.x>np.max(cls.x_log)] )
+                    cls.z_r = np.append( cls.z_r , cls.z[cls.x>np.max(cls.x_log)] )
+                
+            elif np.abs( cls.normal[1] )==np.max( np.abs( cls.normal ) ):
+                if np.min(cls.y)<np.min(cls.y_log):
+                    cls.x_r = cls.x[cls.y<np.min(cls.y_log)]
+                    cls.y_r = cls.y[cls.y<np.min(cls.y_log)]
+                    cls.z_r = cls.z[cls.y<np.min(cls.y_log)]
+                    cls.x_r = np.append( cls.x_r , cls.x_log )
+                    cls.y_r = np.append( cls.y_r , cls.y_log )
+                    cls.z_r = np.append( cls.z_r , cls.z_log )
+                else:
+                    cls.x_r = cls.x_log
+                    cls.y_r = cls.y_log
+                    cls.z_r = cls.z_log
+                if np.max(cls.y)>np.max(cls.y_log):
+                    cls.x_r = np.append( cls.x_r , cls.x[cls.y>np.max(cls.y_log)] )
+                    cls.y_r = np.append( cls.y_r , cls.y[cls.y>np.max(cls.y_log)] )
+                    cls.z_r = np.append( cls.z_r , cls.z[cls.y>np.max(cls.y_log)] )
+
             else:
-                cls.x_r = cls.x_log
-                cls.y_r = cls.y_log
-                cls.z_r = cls.z_log
-            if np.max(cls.z)>np.max(cls.z_log):
-                cls.x_r = np.append( cls.x_r , cls.x[cls.z>np.max(cls.z_log)] )
-                cls.y_r = np.append( cls.y_r , cls.y[cls.z>np.max(cls.z_log)] )
-                cls.z_r = np.append( cls.z_r , cls.z[cls.z>np.max(cls.z_log)] )
+                if np.min(cls.z)<np.min(cls.z_log):
+                    cls.x_r = cls.x[cls.z<np.min(cls.z_log)]
+                    cls.y_r = cls.y[cls.z<np.min(cls.z_log)]
+                    cls.z_r = cls.z[cls.z<np.min(cls.z_log)]
+                    cls.x_r = np.append( cls.x_r , cls.x_log )
+                    cls.y_r = np.append( cls.y_r , cls.y_log )
+                    cls.z_r = np.append( cls.z_r , cls.z_log )
+                else:
+                    cls.x_r = cls.x_log
+                    cls.y_r = cls.y_log
+                    cls.z_r = cls.z_log
+                if np.max(cls.z)>np.max(cls.z_log):
+                    cls.x_r = np.append( cls.x_r , cls.x[cls.z>np.max(cls.z_log)] )
+                    cls.y_r = np.append( cls.y_r , cls.y[cls.z>np.max(cls.z_log)] )
+                    cls.z_r = np.append( cls.z_r , cls.z[cls.z>np.max(cls.z_log)] )
         
         cls.x = cls.x_r
         cls.y = cls.y_r
