@@ -512,6 +512,8 @@ class rake:
         vtk.vtkOutputWindow.GetInstance().SetGlobalWarningDisplay(False)
 
         self.data_loc = "vtk"
+
+        self.coord_change=False
         
     def dataToDictionary( cls ):
         """
@@ -652,9 +654,19 @@ class rake:
             cls.data_df["U_t"] = cls.U_r[1,:]
             cls.data_df["U_b"] = cls.U_r[2,:]
 
+            cls.C_r = np.zeros_like( cls.C_r )
 
+            for i in range( np.shape( cls.C )[-1] ):
 
-                
+                cls.C_r[0,i] = np.dot( cls.normal_vector[:,i] , cls.C[:,i] )
+                cls.C_r[1,i] = np.dot( cls.tangent_vector[:,i] , cls.C[:,i] )
+                cls.C_r[2,i] = np.dot( cls.binormal_vector[:,i] , cls.C[:,i] )
+
+            cls.data_df["C_n"] = cls.C_r[0,:]
+            cls.data_df["C_t"] = cls.C_r[1,:]
+            cls.data_df["C_b"] = cls.C_r[2,:]
+
+        cls.coord_change=True
 
 
     def flowData( cls , nu , side=None , dataDictionaryFormat="pandas" , x_offset=0 ):
@@ -676,35 +688,121 @@ class rake:
             ValueError: _description_
         """
 
+        if not cls.coord_change:
 
-        if side.lower()=="lhs":
-            print("Left hand side")
-        elif side.lower()=="rhs":
-            print("Right hand side")
+            if side.lower()=="lhs":
+                print("Left hand side flow data.")
 
-            if dataDictionaryFormat.lower()=="pandas":
-                print("Pandas data")
+                if dataDictionaryFormat.lower()=="pandas":
+                    print("Pandas data")
 
-                cls.u = cls.data_df["Ux"].values[::-1]
-                cls.y = cls.data_df["y"].values[::-1]
-                #print("Raw y's:\t"+str(cls.y))
-                cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
-                #print("Normalized y's:\t"+str(cls.y))
-                cls.x = cls.data_df["x"].values[-1] - x_offset
-                cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
-                cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
-                #print("u_tau:\t{x:.3f}".format(x=cls.u_tau))
-                cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
-                cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
-                cls.Re_theta = ReynoldsNumber( cls.theta , nu , u = cls.u )
-                cls.Re_tau = ReynoldsNumber( cls.delta , nu , U_inf=cls.u_tau )
-                cls.delta_x = cls.delta / cls.x
-                cls.delta_star_x = cls.delta_star / cls.x
-                cls.theta_x = cls.theta / cls.x
-                cls.H = cls.delta_star / cls.theta
+                    cls.u = cls.data_df["U_n"].values
+                    cls.y = cls.data_df["C_t"].values
+                    #print("Raw y's:\t"+str(cls.y))
+                    cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
+                    #print("Normalized y's:\t"+str(cls.y))
+                    cls.x = cls.data_df["C_n"].values[0] - x_offset
+                    cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
+                    cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
+                    #print("u_tau:\t{x:.3f}".format(x=cls.u_tau))
+                    cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
+                    cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
+                    cls.Re_theta = ReynoldsNumber( cls.theta , nu , u = cls.u )
+                    cls.Re_tau = ReynoldsNumber( cls.delta , nu , U_inf=cls.u_tau )
+                    cls.delta_x = cls.delta / cls.x
+                    cls.delta_star_x = cls.delta_star / cls.x
+                    cls.theta_x = cls.theta / cls.x
+                    cls.H = cls.delta_star / cls.theta
+                
+            elif side.lower()=="rhs":
+                print("Right hand side flow data.")
 
+                if dataDictionaryFormat.lower()=="pandas":
+                    print("Pandas data")
 
-        #elif side==None:
+                    cls.u = cls.data_df["U_n"].values[::-1]
+                    cls.y = cls.data_df["C_t"].values[::-1]
+                    #print("Raw y's:\t"+str(cls.y))
+                    cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
+                    #print("Normalized y's:\t"+str(cls.y))
+                    cls.x = cls.data_df["C_n"].values[-1] - x_offset
+                    cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
+                    cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
+                    #print("u_tau:\t{x:.3f}".format(x=cls.u_tau))
+                    cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
+                    cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
+                    cls.Re_theta = ReynoldsNumber( cls.theta , nu , u = cls.u )
+                    cls.Re_tau = ReynoldsNumber( cls.delta , nu , U_inf=cls.u_tau )
+                    cls.delta_x = cls.delta / cls.x
+                    cls.delta_star_x = cls.delta_star / cls.x
+                    cls.theta_x = cls.theta / cls.x
+                    cls.H = cls.delta_star / cls.theta
+
+            elif side==None:
+                raise ValueError( "None side not implemented yet" )
+            
+            else:
+                raise ValueError( "Invalid side selected" )
+            
+        else:
+
+            if side.lower()=="lhs":
+                print("Left hand side flow data.")
+
+                if dataDictionaryFormat.lower()=="pandas":
+                    print("Pandas data")
+
+                    cls.u = cls.data_df["Ux"].values
+                    cls.y = cls.data_df["C_n"].values
+                    #print("Raw y's:\t"+str(cls.y))
+                    cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
+                    #print("Normalized y's:\t"+str(cls.y))
+                    cls.x = cls.data_df["x"].values[0] - x_offset
+                    cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
+                    cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
+                    #print("u_tau:\t{x:.3f}".format(x=cls.u_tau))
+                    cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
+                    cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
+                    cls.Re_theta = ReynoldsNumber( cls.theta , nu , u = cls.u )
+                    cls.Re_tau = ReynoldsNumber( cls.delta , nu , U_inf=cls.u_tau )
+                    cls.delta_x = cls.delta / cls.x
+                    cls.delta_star_x = cls.delta_star / cls.x
+                    cls.theta_x = cls.theta / cls.x
+                    cls.H = cls.delta_star / cls.theta
+                
+            elif side.lower()=="rhs":
+                print("Right hand side flow data.")
+
+                if dataDictionaryFormat.lower()=="pandas":
+                    print("Pandas data")
+
+                    cls.u = cls.data_df["Ux"].values[::-1]
+                    cls.y = cls.data_df["y"].values[::-1]
+                    #print("Raw y's:\t"+str(cls.y))
+                    cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
+                    #print("Normalized y's:\t"+str(cls.y))
+                    cls.x = cls.data_df["x"].values[-1] - x_offset
+                    cls.delta , cls.delta_star , cls.theta = boundaryLayerThickness( cls.y , cls.u )
+                    cls.u_tau , cls.C_f = shearConditions( cls.y , cls.u , nu )
+                    #print("u_tau:\t{x:.3f}".format(x=cls.u_tau))
+                    cls.Re_x = ReynoldsNumber( cls.x , nu , u = cls.u )
+                    cls.Re_delta = ReynoldsNumber( cls.delta , nu , u = cls.u )
+                    cls.Re_theta = ReynoldsNumber( cls.theta , nu , u = cls.u )
+                    cls.Re_tau = ReynoldsNumber( cls.delta , nu , U_inf=cls.u_tau )
+                    cls.delta_x = cls.delta / cls.x
+                    cls.delta_star_x = cls.delta_star / cls.x
+                    cls.theta_x = cls.theta / cls.x
+                    cls.H = cls.delta_star / cls.theta
+
+            elif side==None:
+                raise ValueError( "None side not implemented yet" )
+            
+            else:
+                raise ValueError( "Invalid side selected" )
+
+    def closeout( cls ):
+
+        del cls.resampled_output
             
 
 class pointDistribution:
@@ -854,7 +952,7 @@ class pointDistribution:
         #
         # Create the log distributions
         #
-        if side.lower()=="lhs":
+        if not side==None and side.lower()=="lhs":
 
             x_L = np.abs( l*cls.normal[0] )
             y_L = np.abs( l*cls.normal[1] )
@@ -873,7 +971,7 @@ class pointDistribution:
             else:
                 cls.z_log = cls.z[0] * np.ones(N)
 
-        elif side.lower()=="rhs":
+        elif not side==None and side.lower()=="rhs":
 
             x_L = np.abs( l*cls.normal[0] )
             y_L = np.abs( l*cls.normal[1] )
@@ -919,13 +1017,13 @@ class pointDistribution:
         #
         # Insert the log distributions
         #
-        if side.lower()=="lhs":
+        if not side==None and side.lower()=="lhs":
 
             cls.x_r = np.append( cls.x_log , cls.x[1:] )
             cls.y_r = np.append( cls.y_log , cls.y[1:] )
             cls.z_r = np.append( cls.z_log , cls.z[1:] )
 
-        elif side.lower()=="rhs":
+        elif not side==None and side.lower()=="rhs":
 
             cls.x_r = np.append( cls.x[:-1] , cls.x_log[::-1] )
             cls.y_r = np.append( cls.y[:-1] , cls.y_log[::-1] )
