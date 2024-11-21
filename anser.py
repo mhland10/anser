@@ -476,6 +476,8 @@ class recycledBoundaryLayer:
                 cls.data_length["L2_error"]+=[cls.layer_errorNorm]
             cls.net_errors+=[cls.layer_errorNorm]
 
+            cls.rake0.closeout()
+
         if xMin:
             cls.x_bestfit = cls.x_vals[ np.argmin( cls.net_errors) ]
         else:
@@ -558,6 +560,17 @@ class recycledBoundaryLayer:
                     formatted_data+=[")"]
 
                     with open("recycled_"+t+"_profile.dat",'w') as f:
+                        for line in formatted_data:
+                            f.write( line + "\n" )
+
+                for j , s in enumerate( passive_scalar ):
+                    cls.sorted_s_data = sorted( zip( cls.data_export["y"] , cls.data_export[s] ) , key=lambda x: x[0] )
+
+                    formatted_data=["("]
+                    formatted_data += [ f"({cls.sorted_s_data[i][0]} {cls.sorted_s_data[i][1]})" for i in range( len( cls.sorted_s_data ) )]
+                    formatted_data+=[")"]
+
+                    with open("recycled_"+s+"_profile.dat",'w') as f:
                         for line in formatted_data:
                             f.write( line + "\n" )
 
