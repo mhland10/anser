@@ -654,7 +654,7 @@ class rake:
             cls.data_df["U_t"] = cls.U_r[1,:]
             cls.data_df["U_b"] = cls.U_r[2,:]
 
-            cls.C_r = np.zeros_like( cls.C_r )
+            cls.C_r = np.zeros_like( cls.C )
 
             for i in range( np.shape( cls.C )[-1] ):
 
@@ -687,6 +687,9 @@ class rake:
         Raises:
             ValueError: _description_
         """
+
+        cls.side = side.lower()
+        cls.nu = nu
 
         if not cls.coord_change:
 
@@ -799,6 +802,34 @@ class rake:
             
             else:
                 raise ValueError( "Invalid side selected" )
+            
+    def boundaryLayerProfile( cls , vonKarmanConst=0.41 , C_plus=5.0 , eta_1=11.0 , b=0.33 , profile="gauriniMoser" ):
+
+        cls.yplus = cls.y * cls.u_tau / cls.nu
+        cls.uplus = cls.u / cls.u_tau
+
+        if profile.lower()=="simpsonbackflow":
+
+            print("Calculating Simpson backflow profile")
+
+            A=0.3
+
+            cls.u_N = np.min( cls.u )
+            cls.N = cls.y[cls.u==cls.u_N]
+
+            cls.u_fit = np.zeros_like( cls.u )
+
+            
+
+
+
+
+
+        print("Hello there")
+
+
+
+
 
     def closeout( cls ):
 
