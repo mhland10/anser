@@ -303,7 +303,8 @@ def shearConditions( y , u , nu , U_inf=None ):
     u_tau = np.sqrt( np.abs( tau_w ) ) * ( tau_w / np.abs( tau_w ) )
     
     # Skin friction coefficient
-    C_f = 2 * ( ( u_tau / U_inf ) ** 2 ) * ( tau_w / np.abs( tau_w ) )
+    C_f = 2 * tau_w / ( U_inf **2 )
+    # C_f = 2 * ( ( u_tau / U_inf ) ** 2 ) * ( tau_w / np.abs( tau_w ) )
 
     return u_tau , C_f 
 

@@ -582,7 +582,7 @@ class rake:
 
         #del cls.resampled_output
 
-    def coordinateChange( cls , coord_tol=1e-6 ):
+    def coordinateChange( cls , coord_tol=1e-9 , nDimensions=2 , fix_blanks=False , rot_axis_val=1 ):
         """
         This method takes the data on the rake and transforms it into the coordinate system defined by
             the rake of normal, tangent, 2nd tangent.
@@ -598,40 +598,45 @@ class rake:
             #
             # Calculate the unit vectors
             #
-            cls.C = np.asarray( [ cls.data_df["Cx"].values , cls.data_df["Cy"].values , cls.data_df["Cz"].values ] )
+            cls.C = np.asarray( [ cls.data_df["x"].values , cls.data_df["y"].values , cls.data_df["z"].values ] )
 
             cls.dC = np.gradient( cls.C , axis=1 )
             cls.tangent_vector = cls.dC / np.linalg.norm( cls.dC , axis=0 )
+            cls.dtangent_vector = np.gradient( cls.tangent_vector , axis=1 , edge_order=2 )
+            """
+            for i in range( np.shape( cls.dtangent_vector)[-1] ):
+                for j in range(3):
+                    if cls.dtangent_vector[j,i]==np.nan:
+                        cls.dtangent_vector[j,i]==0
 
-            cls.dtangent_vector = np.gradient( cls.tangent_vector , axis=1 )
-            cls.normal_vector = np.nan_to_num( cls.dtangent_vector / np.linalg.norm( cls.dtangent_vector , axis=0 ) , nan=0 )
+                if np.linalg.norm( cls.dtangent_vector[:,i] )<=coord_tol:
+                    if i>0 and i<np.shape( cls.dtangent_vector)[-1]-1:
+                        cls.dtangent_vector[:,i] = 0.5 * ( cls.dtangent_vector[:,i-1]+cls.dtangent_vector[:,i+1] )
+                    elif i>0:
+                        cls.dtangent_vector[:,i] = cls.dtangent_vector[:,i+1]
+                    else:
+                        cls.dtangent_vector[:,i] = cls.dtangent_vector[:,i-1]
+            """
 
-            with open("output.txt", "w") as file:
-                    # Write the content
+            rotate_axis = np.zeros_like( cls.tangent_vector )
+            rotate_axis[-1,:] = rot_axis_val
+            if nDimensions==3:
+                cls.normal_vector = cls.dtangent_vector / np.linalg.norm( cls.dtangent_vector , axis=0 )
+            elif nDimensions==2:
+                cls.normal_vector = np.cross( cls.tangent_vector , rotate_axis , axis=0 )
+            else:
+                raise ValueError("Improper number of dimensions")
 
-                for i , t in enumerate( cls.tangent_vector.T ):
-
-                    cls.normal_vector[:,i]=np.zeros_like(t)
-
-                    #file.write(f"For {i}:\n")
-                    #file.write(f"\tTangent vector:\t{str(t)}\n")
-
-                    if np.abs( np.abs(t[0])-1 ) <= coord_tol:
-
-                        #file.write("\tNormal vector to y\n")
-                        cls.normal_vector[1,i]=1
-
-                    elif np.abs( np.abs(t[1])-1 ) <= coord_tol:
-
-                        #file.write("\tNormal vector to x\n")
-                        cls.normal_vector[0,i]=1
-
-                    elif np.abs( np.abs(t[2])-1 ) <= coord_tol:
-
-                        #file.write("\tNormal vector to x\n")
-                        cls.normal_vector[0,i]=1
+            print( "Normal vector is {x:.3f}% efficient".format(x= np.sum( np.linalg.norm( cls.normal_vector , axis=0 ) ) / np.shape( cls.normal_vector )[-1] ) )
 
             cls.binormal_vector = np.cross( cls.tangent_vector , cls.normal_vector , axis=0 )
+
+            if fix_blanks:
+                
+                cls.normal_vector[:,np.isnan(cls.normal_vector)]=cls.normal_vector[np.isnan(cls.normal_vector)]
+                cls.binormal_vector[np.isnan(cls.binormal_vector)]=0
+
+
 
             #
             # Transform velocity
@@ -749,14 +754,16 @@ class rake:
             
         else:
 
+            data_points = len( cls.data_df["U_n"].values )
+
             if side.lower()=="lhs":
                 print("Left hand side flow data.")
 
                 if dataDictionaryFormat.lower()=="pandas":
                     print("Pandas data")
 
-                    cls.u = cls.data_df["U_n"].values
-                    cls.y = cls.data_df["C_t"].values
+                    cls.u = cls.data_df["U_n"].values[:data_points//2]
+                    cls.y = cls.data_df["C_t"].values[:data_points//2] - cls.data_df["C_t"].values[0]
                     #print("Raw y's:\t"+str(cls.y))
                     cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
                     #print("Normalized y's:\t"+str(cls.y))
@@ -779,8 +786,8 @@ class rake:
                 if dataDictionaryFormat.lower()=="pandas":
                     print("Pandas data")
 
-                    cls.u = cls.data_df["U_n"].values[::-1]
-                    cls.y = cls.data_df["C_t"].values[::-1]
+                    cls.u = cls.data_df["U_n"].values[:data_points//2:-1]
+                    cls.y = np.abs( cls.data_df["C_t"].values[:data_points//2:-1] - cls.data_df["C_t"].values[-1] )
                     #print("Raw y's:\t"+str(cls.y))
                     cls.y[np.abs(cls.y)>0] = cls.y[np.abs(cls.y)>0] * ( cls.y[np.abs(cls.y)>0] / np.abs( cls.y[np.abs(cls.y)>0] ) )
                     #print("Normalized y's:\t"+str(cls.y))
